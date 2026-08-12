@@ -15,20 +15,55 @@ export const ROOT_ID = "29045"; // スタートノード(名前空)。ポイン�
 const PSEUDO_ROOT = "root";
 
 export interface AtlasNode {
+  skill?: number;
   name?: string;
+  icon?: string;
+  stats?: string[];
+  reminderText?: string[];
+  flavourText?: string[];
   group?: number;
   orbit?: number;
   orbitIndex?: number;
   isMastery?: boolean;
   isNotable?: boolean;
   isKeystone?: boolean;
+  isWormhole?: boolean;
+  grantedPassivePoints?: number;
   in?: string[];
   out?: string[];
   [key: string]: unknown;
 }
 
+export interface AtlasGroup {
+  x: number;
+  y: number;
+  orbits: number[]; // 信頼できない(実ノードと食い違うグループがある)。描画ヒント程度
+  nodes: string[];
+  background?: { image: string; offsetX?: number; offsetY?: number };
+}
+
+export interface SpriteCoord {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface SpriteSheet {
+  filename: string; // CDN URL。basename がローカル assets/ のファイル名
+  coords: Record<string, SpriteCoord>;
+}
+
 export interface AtlasData {
   nodes: Record<string, AtlasNode>;
+  groups?: Record<string, AtlasGroup>;
+  constants?: {
+    skillsPerOrbit: number[];
+    orbitRadii: number[];
+    [key: string]: unknown;
+  };
+  /** カテゴリ名 → ズームキー(文字列) → シート。ズームキーは imageZoomLevels でなくここから導出する */
+  sprites?: Record<string, Record<string, SpriteSheet>>;
   points?: { totalPoints?: number };
   [key: string]: unknown;
 }

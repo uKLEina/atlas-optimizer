@@ -11,7 +11,13 @@ Path of Exile の Atlas Passive Tree のポイント配分を**厳密解**で最
 ## ステータス
 
 - ✅ **フェーズ1**: Python リファレンス実装(`pyref/`)— CLI で動作、検証済み
-- 🚧 **フェーズ2**: ブラウザ完結の Web UI(TypeScript + [highs-js](https://github.com/lovasoa/highs-js))— 未着手
+- ✅ **フェーズ2**: ブラウザ完結の Web UI(TypeScript + [highs-js](https://github.com/lovasoa/highs-js))
+  — ツリー描画・3状態クリック・自動最適化・PoE Planner エクスポートまで実装済み
+
+```sh
+# Web UI の起動(Node 24 / nvm)
+cd web && npm install && npm run dev
+```
 
 ## セットアップ
 
@@ -58,8 +64,9 @@ uv pip install --python .venv/bin/python -e pyref/
 ```
 ├── DESIGN.md                 # 設計ドキュメント
 ├── ROADMAP.md                # 進捗と作業計画
-├── pyref/                    # Python リファレンス実装(atlasopt パッケージ)
-└── vendor/atlastree-export/  # ゲームデータ(GGG公式、submodule)
+├── pyref/                    # Python リファレンス実装(atlasopt パッケージ、照合オラクル)
+├── web/                      # Web UI(TypeScript + Vite + highs-js)
+└── vendor/atlastree-export/  # ゲームデータ・アセット(GGG公式、submodule)
 ```
 
 ## データについて

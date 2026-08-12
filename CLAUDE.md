@@ -10,8 +10,8 @@ Path of Exile の Atlas Tree ポイント配分を**厳密解**で最適化す�
 ## 現在地(2026-08-12)
 
 - **フェーズ1完了**: Python リファレンス実装(`pyref/`、パッケージ名 atlasopt)
-- **フェーズ2進行中**: TypeScript ソルバー(highs-js = HiGHS の WASM 版)+ ツリー描画UI。
-  ブラウザ完結・ローカル動作(サーバー不要)。`web/` に作成中。
+- **フェーズ2実装完了**(ユーザの最終目視確認待ち): TypeScript ソルバー+ツリー描画UI。
+  ブラウザ完結・ローカル動作。起動は `cd web && npm run dev`。
   スタックは DESIGN.md「フェーズ2 技術スタック」、マイルストーン進捗は ROADMAP.md 参照
 - pyref はフェーズ2の**照合オラクル**。TS版は pyref とのランダム照合で正しさを担保する
   (`pyref/fuzz.py` の4層ピラミッドと同じ思想。詳細は `pyref/README.md`)
@@ -42,7 +42,9 @@ cd pyref && ../.venv/bin/python fuzz.py --cases 100          # 乱数照合、~2
 
 ## 変更時のルール
 
-- ソルバー・縮約・エクスポートに触れたら `pytest` と `fuzz.py --cases 100` を必ず通す
+- pyref のソルバー・縮約・エクスポートに触れたら `pytest` と `fuzz.py --cases 100` を必ず通す
+- web(TS版)のソルバー・縮約・エクスポートに触れたら
+  `cd web && npm test && npm run crosscheck` を必ず通す(pyref との照合)
 - `pyref/atlasopt/ilp_reduced.py` が採用定式化の仕様原本。TS版はこれを移植する
 - スタートノード 29045 はコスト0。ここを1と数えるとすべての結果が1ずれる(過去にやった)
 - `data.json` 差し替え時: `tests/test_graph.py` の実測値、`export.py` の treeVersion を更新

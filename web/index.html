@@ -3,11 +3,33 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Atlas Optimizer — highs-js smoke test</title>
+    <title>Atlas Optimizer</title>
   </head>
   <body>
-    <h1>highs-js smoke test</h1>
-    <pre id="out">solving…</pre>
+    <div id="app">
+      <canvas id="tree"></canvas>
+      <aside id="panel">
+        <h1>Atlas Optimizer</h1>
+        <div id="points"><span id="points-used">0</span> / <span id="points-total">138</span></div>
+        <div id="status" class="status idle">ノードをクリックして指定</div>
+        <div id="ignored-wrap" hidden>
+          <h2>無視された指定(到達不能)</h2>
+          <ul id="ignored"></ul>
+        </div>
+        <div class="buttons">
+          <button id="export" disabled>PoE Planner で開く</button>
+          <button id="reset">リセット</button>
+        </div>
+        <div id="hint">
+          クリック: 指定 → 除外 → 解除<br />
+          mastery クリック: グループの Notable を一括指定<br />
+          ドラッグ: 移動 / ホイール: ズーム
+        </div>
+        <div id="toast" hidden></div>
+      </aside>
+    </div>
+    <div id="tooltip" hidden></div>
+    <div id="loading">読み込み中…</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

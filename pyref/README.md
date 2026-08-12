@@ -41,6 +41,24 @@ fuzz は4層で `ilp_reduced`(採用定式化)を検証する:
 | naive | terminal 8〜12 で素朴ILP(証明付き)vs reduced |
 | large | terminal 15〜60。妥当性検証+不変量+素朴ILPの上下界区間チェック |
 
+## TS版との照合(crosscheck)
+
+`crosscheck.py` は fuzz と同じ流儀でランダムケースを作り、pyref をオラクルとして
+期待値(points / ignored)を JSON に焼き込む。TS 版(`web/`)はこれを読んで全一致を
+検証する:
+
+```sh
+# 標準 fixture(web/tests/fixtures/crosscheck.json、seed 0)の再生成
+python crosscheck.py --cases 100 --seed 0 --out ../web/tests/fixtures/crosscheck.json
+
+# TS 側の照合実行
+cd ../web && npm run crosscheck
+
+# 別 seed で新規ケースを回す場合
+python crosscheck.py --cases 50 --seed 1 --out /tmp/cc.json
+cd ../web && CROSSCHECK_CASES=/tmp/cc.json npm run crosscheck
+```
+
 ## モジュール構成
 
 - `graph.py` — data.json 読み込み(mastery除外、29045=root・コスト0)
@@ -55,7 +73,8 @@ fuzz は4層で `ilp_reduced`(採用定式化)を検証する:
 ## リーグ更新時
 
 1. `git submodule update --remote vendor/atlastree-export` で新リーグのデータを取得
-2. `tests/test_graph.py` の実測値(ノード数など)を更新
+2. `tests/test_graph.py` と `web/tests/graph.test.ts` の実測値(ノード数など)を更新
 3. `export.py` の `TREE_VERSION_3_29` を更新
    (<https://cdn.poeplanner.com/json/versions.json> の `atlasVersions` 参照)
 4. `pytest` と `fuzz.py` を再実行
+5. crosscheck fixture を再生成し(上記)、`cd web && npm test && npm run crosscheck` を通す

@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "crosscheck": "vitest run --config vitest.crosscheck.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

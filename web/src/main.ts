@@ -1,28 +1,94 @@
-import wasmUrl from "highs/runtime?url";
-import { loadSolver } from "./solver/highs";
+/**
+ * エントリポイント: データ取得 → グラフ/レイアウト/アセット準備 → UI 配線。
+ */
 
-// スモークテスト用の小さな ILP(最適値 5: y = z = 1, x = 0)
-const SAMPLE_LP = `Maximize
- obj: x + 2 y + 3 z
-Subject To
- c1: x + y + z <= 2
-Binary
- x y z
-End`;
+import "./style.css";
+import { buildGraph, type AtlasData } from "./data/graph";
+import { SolverClient } from "./solver/client";
+import { Assets } from "./ui/assets";
+import { Interaction } from "./ui/interaction";
+import { buildLayout } from "./ui/layout";
+import { Panel } from "./ui/panel";
+import { Renderer } from "./ui/renderer";
+import { AppState } from "./ui/state";
+import { Tooltip } from "./ui/tooltip";
+import { Viewport } from "./ui/viewport";
 
-const out = document.querySelector<HTMLPreElement>("#out");
-if (!out) throw new Error("#out not found");
+const SOLVE_DEBOUNCE_MS = 300;
 
-try {
-  const highs = await loadSolver(() => wasmUrl);
-  const solution = highs.solve(SAMPLE_LP);
-  out.textContent = [
-    `Status: ${solution.Status} (expected: Optimal)`,
-    `ObjectiveValue: ${solution.ObjectiveValue} (expected: 5)`,
-    "",
-    JSON.stringify(solution, null, 2),
-  ].join("\n");
-} catch (err) {
-  out.textContent = `FAILED: ${String(err)}`;
-  throw err;
+async function init(): Promise<void> {
+  const loading = document.getElementById("loading")!;
+  const canvas = document.getElementById("tree") as HTMLCanvasElement;
+
+  loading.textContent = "ツリーデータを読み込み中…";
+  const res = await fetch("atlas/data.json");
+  if (!res.ok) throw new Error(`data.json の取得に失敗: HTTP ${res.status}`);
+  const data = (await res.json()) as AtlasData;
+
+  const g = buildGraph(data);
+  const layout = buildLayout(data);
+  const assets = new Assets(data);
+  await assets.load((done, total) => {
+    loading.textContent = `アセット読み込み中… ${done}/${total}`;
+  });
+
+  const state = new AppState(g);
+  const viewport = new Viewport(canvas);
+  const renderer = new Renderer(canvas, data, g, layout, assets, viewport, state);
+
+  let dirty = true;
+  const requestDraw = (): void => {
+    dirty = true;
+  };
+  const frame = (): void => {
+    if (dirty) {
+      dirty = false;
+      renderer.draw();
+    }
+    requestAnimationFrame(frame);
+  };
+
+  const tooltip = new Tooltip(document.getElementById("tooltip")!);
+  new Panel(data, g, state, layout, viewport, requestDraw);
+  new Interaction(canvas, data, g.root, layout, viewport, state, tooltip, requestDraw).attach();
+
+  const solver = new SolverClient(
+    data,
+    (result) => state.setResult(result),
+    (message) => state.setError(message),
+  );
+  let debounceTimer: number | undefined;
+  state.onMarksChange(() => {
+    state.setSolving();
+    window.clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      solver.request(state.terminals(), state.excluded());
+    }, SOLVE_DEBOUNCE_MS);
+  });
+  state.subscribe(requestDraw);
+
+  const resize = (): void => {
+    renderer.resize();
+    requestDraw();
+  };
+  window.addEventListener("resize", resize);
+  renderer.resize();
+  viewport.fit(layout.bounds);
+
+  loading.remove();
+  requestAnimationFrame(frame);
+
+  // E2E(Playwright)・デバッグ用のフック。UIの動作には関与しない
+  (window as unknown as Record<string, unknown>)["__atlas"] = {
+    state,
+    viewport,
+    layout,
+    requestDraw,
+  };
 }
+
+void init().catch((err: unknown) => {
+  const loading = document.getElementById("loading");
+  if (loading) loading.textContent = `初期化に失敗した: ${String(err)}`;
+  console.error(err);
+});
