@@ -10,9 +10,9 @@ Path of Exile の Atlas Tree ポイント配分を**厳密解**で最適化す�
 ## 現在地(2026-08-12)
 
 - **フェーズ1完了**: Python リファレンス実装(`pyref/`、パッケージ名 atlasopt)
-- **フェーズ2未着手**: TypeScript ソルバー(highs-js = HiGHS の WASM 版)+ ツリー描画UI。
-  ブラウザ完結・ローカル動作(サーバー不要)。`web/` にこのリポジトリ内で作る。
-  スタックは DESIGN.md「フェーズ2 技術スタック」、マイルストーンは ROADMAP.md 参照
+- **フェーズ2進行中**: TypeScript ソルバー(highs-js = HiGHS の WASM 版)+ ツリー描画UI。
+  ブラウザ完結・ローカル動作(サーバー不要)。`web/` に作成中。
+  スタックは DESIGN.md「フェーズ2 技術スタック」、マイルストーン進捗は ROADMAP.md 参照
 - pyref はフェーズ2の**照合オラクル**。TS版は pyref とのランダム照合で正しさを担保する
   (`pyref/fuzz.py` の4層ピラミッドと同じ思想。詳細は `pyref/README.md`)
 
