@@ -18,7 +18,7 @@ UIから作ると「動いているように見えるが正しさが不明」な
    `web/` に Vite+TS+Vitest の雛形を作り、highs-js で小さいLPが解けることを確認する。
    WASMソルバーの動作が最大の技術リスクのため最優先で潰す。
    Vitest(Node)2件パス・`vite build` で WASM バンドル確認済み。
-   ブラウザでの表示確認(`npm run dev`)はユーザ実施
+   ブラウザ(`npm run dev`)でも Optimal/目的値5 の表示を実地確認済み
 2. **ロジック移植(UI無し)**
    `graph.py` → `reduction.py` → `ilp_reduced.py` → `export.py` の順に移植。
    pyref の pytest も Vitest へ移植して通す
