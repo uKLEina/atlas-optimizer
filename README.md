@@ -57,6 +57,7 @@ uv pip install --python .venv/bin/python -e pyref/
 
 ```
 ├── DESIGN.md                 # 設計ドキュメント
+├── ROADMAP.md                # 進捗と作業計画
 ├── pyref/                    # Python リファレンス実装(atlasopt パッケージ)
 └── vendor/atlastree-export/  # ゲームデータ(GGG公式、submodule)
 ```
