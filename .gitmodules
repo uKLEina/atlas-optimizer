@@ -1,0 +1,3 @@
+[submodule "vendor/atlastree-export"]
+	path = vendor/atlastree-export
+	url = https://github.com/grindinggear/atlastree-export
