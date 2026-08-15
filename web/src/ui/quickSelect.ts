@@ -56,8 +56,29 @@ const RULES: readonly SetRule[] = [
   {
     key: "eater",
     label: "Eater of Worlds",
-    accent: "#4a7fe0",
+    accent: "#3ecfd6",
     include: influenceRule("Eater of Worlds"),
+  },
+  {
+    key: "maven",
+    label: "Maven",
+    accent: "#7d6ef0",
+    // データ側に "the Maven" / "The Maven" の表記ゆれがあるため大小無視で一致させる
+    include: (nd, stats) =>
+      nd.name === "Destructive Play" ||
+      stats.some((s) => s.toLowerCase().includes("witnessed by the maven")),
+  },
+  {
+    key: "mapBoss",
+    label: "Final Map Boss",
+    // Destructive Play も stat に "Final Map Boss" を含むが、こちらは Maven セットの担当。
+    // 両方に入れると「Maven → Final Map Boss を順にトグル」した際に後者の解除で
+    // Destructive Play まで外れてしまう(ユーザ指定の除外)
+    include: (nd, stats) =>
+      nd.name !== "Destructive Play" &&
+      (nd.name === "Conquered Conquerors" ||
+        nd.name === "Significant Troves" ||
+        stats.some((s) => s.includes("Final Map Boss"))),
   },
 ];
 
