@@ -5,14 +5,15 @@ import { loadRawData } from "./helpers/data";
 const data = loadRawData();
 const layout = buildLayout(data);
 
-it("座標式ゴールデン(探索エージェントが実データで検算した6ノード)", () => {
+it("座標式ゴールデン(Python独立実装で再計算した6ノード。16/40軌道の特殊角度表込み)", () => {
+  // 63311/44775 は orbit 3(16スロット、非等間隔)。idx 5 → 120°, idx 11 → 240°
   const expected: Record<string, [number, number]> = {
     "29045": [-0.39, 0.23],
-    "63311": [-889.53, -550.99],
+    "63311": [-908.91, -511.69],
     "42692": [-423.38, -732.42],
     "55117": [422.61, -732.42],
     "64048": [-1.66, -926.92],
-    "44775": [886.44, -561.57],
+    "44775": [905.82, -522.26],
   };
   for (const [id, [x, y]] of Object.entries(expected)) {
     const p = layout.positions.get(id);

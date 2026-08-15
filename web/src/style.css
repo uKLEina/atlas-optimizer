@@ -131,6 +131,17 @@ button:disabled {
   margin-top: auto;
 }
 
+#credit {
+  font-size: 11px;
+  color: #55524a;
+  line-height: 1.6;
+  margin-top: 8px;
+}
+
+#credit a {
+  color: inherit;
+}
+
 #toast {
   font-size: 13px;
   color: #43c26b;

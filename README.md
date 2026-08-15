@@ -75,3 +75,12 @@ uv pip install --python .venv/bin/python -e pyref/
 Grinding Gear Games の著作物であり、公式リポジトリから submodule として
 参照している。リーグ更新時は `git submodule update --remote` で追従する
 (追従後のテスト更新手順は [pyref/README.md](pyref/README.md) を参照)。
+
+## ライセンス
+
+本リポジトリのコードは [MIT License](LICENSE)。
+
+ただし `vendor/atlastree-export` 以下のゲームデータ・画像
+(および公開サイトが配信するそれらの複製)は Grinding Gear Games の
+著作物であり、MIT ライセンスの対象外。本ツールは GGG とは無関係の
+非公式コミュニティツールである。

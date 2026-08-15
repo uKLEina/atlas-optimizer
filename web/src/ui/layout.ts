@@ -1,10 +1,14 @@
 /**
  * ノードの世界座標とエッジ形状の計算。
  *
- * 座標式(PoE 標準、探索エージェントが実データで検算済み):
- *   θ = 2π · orbitIndex / skillsPerOrbit[orbit]   (12時方向から時計回り)
+ * 座標式(PoE 標準):
+ *   θ = orbitAngles(skillsPerOrbit[orbit])[orbitIndex]   (12時方向から時計回り)
  *   x = group.x + orbitRadii[orbit] · sin θ
  *   y = group.y − orbitRadii[orbit] · cos θ
+ *
+ * 16/40 ノード軌道は**等間隔ではない**(30°/45°、10°/45° の混在)。
+ * 角度表は GGG 公式 skilltree-export README 準拠(PoB / poeplanner も同じ)。
+ * 等分割で計算するとツリーの大半(16軌道に約700ノード)がゲーム内表示とズレる。
  *
  * 擬似ノード "root" は group 0(実在しない)を指すため捨てる。
  * 同グループ・同軌道(>0)のエッジは軌道弧、それ以外は直線として分類する。
@@ -41,6 +45,22 @@ export interface TreeLayout {
 
 const TAU = Math.PI * 2;
 
+/** 軌道上の角度表(度)。16/40 は GGG 公式の特殊配置、それ以外は等分割 */
+function orbitAngleTable(slots: number): number[] {
+  if (slots === 16) {
+    return [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330];
+  }
+  if (slots === 40) {
+    // prettier-ignore
+    return [
+      0, 10, 20, 30, 40, 45, 50, 60, 70, 80, 90, 100, 110, 120, 130, 135, 140, 150,
+      160, 170, 180, 190, 200, 210, 220, 225, 230, 240, 250, 260, 270, 280, 290,
+      300, 310, 315, 320, 330, 340, 350,
+    ];
+  }
+  return Array.from({ length: slots }, (_, i) => (360 * i) / slots);
+}
+
 export function buildLayout(data: AtlasData): TreeLayout {
   const groups = data.groups;
   const constants = data.constants;
@@ -48,6 +68,9 @@ export function buildLayout(data: AtlasData): TreeLayout {
     throw new Error("data.json lacks groups/constants — not a tree export?");
   }
   const { skillsPerOrbit, orbitRadii } = constants;
+  const anglesByOrbit = skillsPerOrbit.map((n) =>
+    orbitAngleTable(n).map((deg) => (deg * Math.PI) / 180),
+  );
 
   const positions = new Map<string, LayoutNode>();
   for (const [nid, nd] of Object.entries(data.nodes)) {
@@ -55,12 +78,15 @@ export function buildLayout(data: AtlasData): TreeLayout {
     const group = groups[String(nd.group)];
     if (!group) throw new Error(`node ${nid}: group ${nd.group} not found`);
     const orbit = nd.orbit ?? 0;
-    const perOrbit = skillsPerOrbit[orbit];
+    const angles = anglesByOrbit[orbit];
     const radius = orbitRadii[orbit];
-    if (perOrbit === undefined || radius === undefined) {
+    if (angles === undefined || radius === undefined) {
       throw new Error(`node ${nid}: orbit ${orbit} out of range`);
     }
-    const theta = (TAU * (nd.orbitIndex ?? 0)) / perOrbit;
+    const theta = angles[nd.orbitIndex ?? 0];
+    if (theta === undefined) {
+      throw new Error(`node ${nid}: orbitIndex ${nd.orbitIndex} out of range for orbit ${orbit}`);
+    }
     positions.set(nid, {
       x: group.x + radius * Math.sin(theta),
       y: group.y - radius * Math.cos(theta),
