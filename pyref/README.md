@@ -32,14 +32,16 @@ python -m pytest             # ユニットテスト
 python fuzz.py --cases 100   # 乱数照合(照合ピラミッド、プロセス並列で~2分)
 ```
 
-fuzz は4層で `ilp_reduced`(採用定式化)を検証する:
+fuzz は4層の tier で `ilp_reduced` を検証し、さらに**全 tier で木分解 DP(`dp.py`、
+採用ソルバー)も解いて一致を照合**する(large では タイブレーク重み付きの
+ポイント不変も確認):
 
 | tier | 内容 |
 |---|---|
-| ball | 小部分グラフ上で 全列挙 vs Dreyfus-Wagner vs reduced の3実装一致 |
-| dw | 全グラフ・terminal 1〜7 で DW vs reduced(最適値・無視リスト) |
-| naive | terminal 8〜12 で素朴ILP(証明付き)vs reduced |
-| large | terminal 15〜60。妥当性検証+不変量+素朴ILPの上下界区間チェック |
+| ball | 小部分グラフ上で 全列挙 vs Dreyfus-Wagner vs reduced vs dp の一致 |
+| dw | 全グラフ・terminal 1〜7 で DW vs reduced vs dp(最適値・無視リスト) |
+| naive | terminal 8〜12 で素朴ILP(証明付き)vs reduced vs dp |
+| large | terminal 15〜60。妥当性検証+不変量+素朴ILPの上下界区間+dp照合 |
 
 ## TS版との照合(crosscheck)
 
@@ -62,13 +64,15 @@ cd ../web && CROSSCHECK_CASES=/tmp/cc.json npm run crosscheck
 ## モジュール構成
 
 - `graph.py` — data.json 読み込み(mastery除外、29045=root・コスト0)
-- `reduction.py` — 葉刈り+チェーン縮約と解の展開
-- `ilp_reduced.py` — **採用定式化(TS移植の仕様原本)**
+- `decomposition.py` — 木分解(min-fill)と妥当性検証
+- `dp.py` — **採用ソルバー: 木分解上の辞書式 Steiner DP(TS移植の仕様原本)**
+- `reduction.py` — 隣接terminal縮約+葉刈り+チェーン縮約と解の展開(ILP系の前処理)
+- `ilp_reduced.py` — 縮約+強化ILP(旧採用。現・照合オラクル、crosscheck 生成にも使用)
 - `ilp_naive.py` — 素朴定式化(オラクル)
 - `brute.py` — Dreyfus-Wagner DP と全列挙(ILPと独立なオラクル)
 - `validate.py` — 解の実行可能性検証
 - `export.py` — PoE Planner URL encode/decode
-- `cli.py` — CLI
+- `cli.py` — CLI(`--solver dp|reduced|naive`、既定 dp)
 
 ## リーグ更新時
 

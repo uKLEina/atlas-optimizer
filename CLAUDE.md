@@ -38,7 +38,7 @@ Path of Exile の Atlas Tree ポイント配分を**厳密解**で最適化す�
 uv pip install --python .venv/bin/python -e pyref/ pytest   # セットアップ
 .venv/bin/python -m atlasopt solve --terminals "Endless Tide"
 .venv/bin/python -m atlasopt bench
-cd pyref && ../.venv/bin/python -m pytest                    # 22件、~7秒
+cd pyref && ../.venv/bin/python -m pytest                    # 42件、~25秒
 cd pyref && ../.venv/bin/python fuzz.py --cases 100          # 乱数照合、~2分
 ```
 
