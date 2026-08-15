@@ -12,9 +12,13 @@
         <h1>Atlas Optimizer</h1>
         <div id="points"><span id="points-used">0</span> / <span id="points-total">138</span></div>
         <div id="status" class="status idle">Click nodes to select targets</div>
-        <div id="search-row">
+        <div id="search-box">
+          <svg id="search-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="6.5" cy="6.5" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6" />
+            <line x1="10" y1="10" x2="14.2" y2="14.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
           <input id="search" type="search" placeholder="Search nodes…" autocomplete="off" />
-          <span id="search-count" hidden></span>
+          <button id="search-clear" type="button" aria-label="Clear search" hidden>×</button>
         </div>
         <div id="ignored-wrap" hidden>
           <h2>Ignored selections (unreachable)</h2>

@@ -40,12 +40,16 @@ export class Panel {
 
     const searchIndex = buildSearchIndex(data);
     const searchInput = mustGet("search") as HTMLInputElement;
-    const searchCount = mustGet("search-count");
-    searchInput.addEventListener("input", () => {
-      const hits = searchNodes(searchIndex, searchInput.value);
-      this.state.setSearch(hits);
-      searchCount.hidden = hits.size === 0;
-      searchCount.textContent = String(hits.size);
+    const searchClear = mustGet("search-clear");
+    const applySearch = (): void => {
+      this.state.setSearch(searchNodes(searchIndex, searchInput.value));
+      searchClear.hidden = searchInput.value.length === 0;
+    };
+    searchInput.addEventListener("input", applySearch);
+    searchClear.addEventListener("click", () => {
+      searchInput.value = "";
+      applySearch();
+      searchInput.focus();
     });
     this.ignoredWrapEl = mustGet("ignored-wrap");
     this.ignoredEl = mustGet("ignored");
