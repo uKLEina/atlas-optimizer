@@ -30,8 +30,9 @@
         </div>
         <div class="buttons">
           <button id="export" disabled>Open in PoE Planner</button>
-          <button id="reset">Reset</button>
         </div>
+        <!-- Reset は破壊的操作なので Export から離して最下部に置き、赤で区別する -->
+        <button id="reset">Reset</button>
         <div id="hint">
           <!-- 矢印(U+2192)は Inter の配信サブセット外でフォールバック描画になるため「›」を使う -->
           Click: select › exclude › clear<br />
