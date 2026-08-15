@@ -1,8 +1,8 @@
 /**
  * サイドパネル: ポイント数 / 最適性バッジ / 無視された指定 / エクスポート / リセット。
  *
- * バッジの文言は厳密性の表示なので崩さないこと(本ツールの存在意義):
- *   optimal → 「最適(証明付き)」 / feasible → 「実行可能(証明なし)」
+ * バッジは厳密性の表示なので optimal と feasible の区別を崩さないこと(本ツールの存在意義):
+ *   optimal → "✅ Optimal"(ソルバーの最適性証明済み) / feasible → "Feasible (not proven optimal)"
  */
 
 import type { AtlasData, AtlasGraph } from "../data/graph";
@@ -54,22 +54,22 @@ export class Panel {
     let text: string;
     let cls: string;
     if (state.solving) {
-      text = "計算中…";
+      text = "Solving…";
       cls = "solving";
     } else if (state.solveError) {
-      text = `エラー: ${state.solveError}`;
+      text = `Error: ${state.solveError}`;
       cls = "error";
     } else if (!res) {
-      text = "ノードをクリックして指定";
+      text = "Click nodes to select targets";
       cls = "idle";
     } else if (res.status === "optimal") {
-      text = "最適(証明付き)";
+      text = "✅ Optimal";
       cls = "optimal";
     } else if (res.status === "feasible") {
-      text = "実行可能(証明なし)";
+      text = "Feasible (not proven optimal)";
       cls = "feasible";
     } else {
-      text = "実行不能(バグの可能性)";
+      text = "Infeasible (likely a bug)";
       cls = "error";
     }
     this.statusEl.textContent = text;
@@ -81,7 +81,7 @@ export class Panel {
       ...ignored.map((id) => {
         const li = document.createElement("li");
         li.textContent = this.g.info.get(id)?.name || id;
-        li.title = "クリックでノードへ移動";
+        li.title = "Click to jump to this node";
         li.addEventListener("click", () => {
           const p = this.layout.positions.get(id);
           if (p) {
@@ -102,9 +102,9 @@ export class Panel {
     const url = encodeUrl([...res.nodes]);
     try {
       await navigator.clipboard.writeText(url);
-      this.toast("URLをコピーした。PoE Planner を開くよ");
+      this.toast("URL copied — opening PoE Planner");
     } catch {
-      this.toast("PoE Planner を開くよ(コピーは失敗)");
+      this.toast("Opening PoE Planner (copy failed)");
     }
     window.open(url, "_blank", "noopener");
   }

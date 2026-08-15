@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -11,25 +11,25 @@
       <aside id="panel">
         <h1>Atlas Optimizer</h1>
         <div id="points"><span id="points-used">0</span> / <span id="points-total">138</span></div>
-        <div id="status" class="status idle">ノードをクリックして指定</div>
+        <div id="status" class="status idle">Click nodes to select targets</div>
         <div id="ignored-wrap" hidden>
-          <h2>無視された指定(到達不能)</h2>
+          <h2>Ignored selections (unreachable)</h2>
           <ul id="ignored"></ul>
         </div>
         <div class="buttons">
-          <button id="export" disabled>PoE Planner で開く</button>
-          <button id="reset">リセット</button>
+          <button id="export" disabled>Open in PoE Planner</button>
+          <button id="reset">Reset</button>
         </div>
         <div id="hint">
-          クリック: 指定 → 除外 → 解除<br />
-          mastery クリック: 同名 mastery の Notable を全て一括指定<br />
-          ドラッグ: 移動 / ホイール: ズーム
+          Click: select → exclude → clear<br />
+          Mastery click: toggle all Notables of that mastery<br />
+          Drag: pan / Wheel: zoom
         </div>
         <div id="toast" hidden></div>
       </aside>
     </div>
     <div id="tooltip" hidden></div>
-    <div id="loading">読み込み中…</div>
+    <div id="loading">Loading…</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

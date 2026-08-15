@@ -21,16 +21,16 @@ async function init(): Promise<void> {
   const loading = document.getElementById("loading")!;
   const canvas = document.getElementById("tree") as HTMLCanvasElement;
 
-  loading.textContent = "ツリーデータを読み込み中…";
+  loading.textContent = "Loading tree data…";
   const res = await fetch("atlas/data.json");
-  if (!res.ok) throw new Error(`data.json の取得に失敗: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Failed to fetch data.json: HTTP ${res.status}`);
   const data = (await res.json()) as AtlasData;
 
   const g = buildGraph(data);
   const layout = buildLayout(data);
   const assets = new Assets(data);
   await assets.load((done, total) => {
-    loading.textContent = `アセット読み込み中… ${done}/${total}`;
+    loading.textContent = `Loading assets… ${done}/${total}`;
   });
 
   const masteryIndex = buildMasteryIndex(data);
@@ -92,6 +92,6 @@ async function init(): Promise<void> {
 
 void init().catch((err: unknown) => {
   const loading = document.getElementById("loading");
-  if (loading) loading.textContent = `初期化に失敗した: ${String(err)}`;
+  if (loading) loading.textContent = `Initialization failed: ${String(err)}`;
   console.error(err);
 });
