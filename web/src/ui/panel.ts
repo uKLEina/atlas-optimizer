@@ -8,6 +8,7 @@
 import type { AtlasData, AtlasGraph } from "../data/graph";
 import { encodeUrl } from "../export/poeplanner";
 import type { TreeLayout } from "./layout";
+import type { QuickSet } from "./quickSelect";
 import type { AppState } from "./state";
 import type { Viewport } from "./viewport";
 
@@ -27,6 +28,7 @@ export class Panel {
     private readonly layout: TreeLayout,
     private readonly viewport: Viewport,
     private readonly requestDraw: () => void,
+    quickSets: readonly QuickSet[] = [],
   ) {
     this.pointsEl = mustGet("points-used");
     this.statusEl = mustGet("status");
@@ -37,6 +39,16 @@ export class Panel {
     this.toastEl = mustGet("toast");
 
     mustGet("points-total").textContent = String(data.points?.totalPoints ?? 138);
+    const quickButtons = mustGet("quick-buttons");
+    for (const set of quickSets) {
+      if (set.ids.length === 0) continue; // リーグ更新でセットが空になったら出さない
+      const btn = document.createElement("button");
+      btn.textContent = set.label;
+      btn.title = `Toggle ${set.ids.length} nodes`;
+      if (set.accent) btn.style.borderLeft = `3px solid ${set.accent}`;
+      btn.addEventListener("click", () => this.state.quickToggle(set.ids));
+      quickButtons.append(btn);
+    }
     this.exportBtn.addEventListener("click", () => void this.export());
     this.resetBtn.addEventListener("click", () => this.state.reset());
     this.state.subscribe(() => this.update());

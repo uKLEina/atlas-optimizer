@@ -80,6 +80,22 @@ export class AppState {
     return true;
   }
 
+  /**
+   * クイック選択ボタン用の一括トグル: 全員 terminal なら全員解除、
+   * それ以外(未選択・混在)なら全員 terminal。excluded 状態は経由しない
+   * (mastery クリックの3状態巡回とは意図的に別挙動。ボタンは選択/解除の往復)
+   */
+  quickToggle(ids: readonly string[]): boolean {
+    if (ids.length === 0) return false;
+    const allTerminal = ids.every((id) => this.markOf(id) === "terminal");
+    for (const id of ids) {
+      if (allTerminal) this.marks.delete(id);
+      else this.marks.set(id, "terminal");
+    }
+    this.emit(true);
+    return true;
+  }
+
   terminals(): string[] {
     return [...this.marks.entries()].filter(([, m]) => m === "terminal").map(([n]) => n);
   }

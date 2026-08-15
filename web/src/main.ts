@@ -10,6 +10,7 @@ import { Interaction } from "./ui/interaction";
 import { buildLayout } from "./ui/layout";
 import { buildMasteryIndex } from "./ui/masteryIndex";
 import { Panel } from "./ui/panel";
+import { buildQuickSets } from "./ui/quickSelect";
 import { Renderer } from "./ui/renderer";
 import { AppState } from "./ui/state";
 import { Tooltip } from "./ui/tooltip";
@@ -51,7 +52,7 @@ async function init(): Promise<void> {
   };
 
   const tooltip = new Tooltip(document.getElementById("tooltip")!);
-  new Panel(data, g, state, layout, viewport, requestDraw);
+  new Panel(data, g, state, layout, viewport, requestDraw, buildQuickSets(data, g));
   new Interaction(canvas, data, g.root, layout, viewport, state, tooltip, requestDraw).attach();
 
   const solver = new SolverClient(
