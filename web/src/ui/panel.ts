@@ -7,6 +7,7 @@
 
 import type { AtlasData, AtlasGraph } from "../data/graph";
 import { encodeUrl } from "../export/poeplanner";
+import { effectiveTotal } from "./bonusPoints";
 import type { TreeLayout } from "./layout";
 import type { QuickSet } from "./quickSelect";
 import type { AppState } from "./state";
@@ -14,6 +15,7 @@ import type { Viewport } from "./viewport";
 
 export class Panel {
   private readonly pointsEl: HTMLElement;
+  private readonly pointsTotalEl: HTMLElement;
   private readonly statusEl: HTMLElement;
   private readonly ignoredWrapEl: HTMLElement;
   private readonly ignoredEl: HTMLElement;
@@ -29,8 +31,10 @@ export class Panel {
     private readonly viewport: Viewport,
     private readonly requestDraw: () => void,
     quickSets: readonly QuickSet[] = [],
+    private readonly bonusPoints: ReadonlyMap<string, number> = new Map(),
   ) {
     this.pointsEl = mustGet("points-used");
+    this.pointsTotalEl = mustGet("points-total");
     this.statusEl = mustGet("status");
     this.ignoredWrapEl = mustGet("ignored-wrap");
     this.ignoredEl = mustGet("ignored");
@@ -38,7 +42,6 @@ export class Panel {
     this.resetBtn = mustGet("reset") as HTMLButtonElement;
     this.toastEl = mustGet("toast");
 
-    mustGet("points-total").textContent = String(data.points?.totalPoints ?? 138);
     const quickButtons = mustGet("quick-buttons");
     for (const set of quickSets) {
       if (set.ids.length === 0) continue; // リーグ更新でセットが空になったら出さない
@@ -58,9 +61,12 @@ export class Panel {
   private update(): void {
     const { state } = this;
     const res = state.result;
-    const total = this.data.points?.totalPoints ?? 138;
+    const base = this.data.points?.totalPoints ?? 138;
+    // 解に Unwavering Vision 等が含まれるなら予算表示もその分増やす
+    const total = effectiveTotal(base, this.bonusPoints, res?.nodes);
     const points = res?.points ?? 0;
     this.pointsEl.textContent = String(points);
+    this.pointsTotalEl.textContent = String(total);
     this.pointsEl.classList.toggle("over", points > total);
 
     let text: string;

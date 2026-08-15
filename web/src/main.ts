@@ -6,6 +6,7 @@ import "./style.css";
 import { buildGraph, type AtlasData } from "./data/graph";
 import { SolverClient } from "./solver/client";
 import { Assets } from "./ui/assets";
+import { buildBonusPoints } from "./ui/bonusPoints";
 import { Interaction } from "./ui/interaction";
 import { buildLayout } from "./ui/layout";
 import { buildMasteryIndex } from "./ui/masteryIndex";
@@ -52,7 +53,16 @@ async function init(): Promise<void> {
   };
 
   const tooltip = new Tooltip(document.getElementById("tooltip")!);
-  new Panel(data, g, state, layout, viewport, requestDraw, buildQuickSets(data, g));
+  new Panel(
+    data,
+    g,
+    state,
+    layout,
+    viewport,
+    requestDraw,
+    buildQuickSets(data, g),
+    buildBonusPoints(data),
+  );
   new Interaction(canvas, data, g.root, layout, viewport, state, tooltip, requestDraw).attach();
 
   const solver = new SolverClient(
