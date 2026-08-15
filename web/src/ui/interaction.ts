@@ -4,7 +4,9 @@
  */
 
 import type { AtlasData } from "../data/graph";
+import type { Assets } from "./assets";
 import type { TreeLayout } from "./layout";
+import { spriteKeysFor } from "./renderer";
 import type { AppState } from "./state";
 import type { Tooltip } from "./tooltip";
 import type { Viewport } from "./viewport";
@@ -18,16 +20,22 @@ export class Interaction {
   private lastX = 0;
   private lastY = 0;
 
+  /** 描画と同じ最高解像度キー(見た目サイズの算出用) */
+  private readonly zk: string;
+
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly data: AtlasData,
     private readonly rootId: string,
     private readonly layout: TreeLayout,
+    private readonly assets: Assets,
     private readonly viewport: Viewport,
     private readonly state: AppState,
     private readonly tooltip: Tooltip,
     private readonly requestDraw: () => void,
-  ) {}
+  ) {
+    this.zk = assets.zoomKeys[assets.zoomKeys.length - 1]!;
+  }
 
   attach(): void {
     const c = this.canvas;
@@ -97,15 +105,19 @@ export class Interaction {
     return best;
   }
 
+  /**
+   * クリック判定半径 = 描画スプライトの見た目サイズの半分(ユーザレビュー対応。
+   * 以前の決め打ち値は見た目の半分程度しかなく「アイコン上なのに押せない」状態だった)。
+   * hitTest は最近傍ノードのみを候補にするため、半径が隣ノードと重なっても誤爆しない
+   */
   private hitRadius(id: string): number {
     if (id === this.rootId) return 0; // root はクリック対象外
     const nd = this.data.nodes[id];
     if (!nd) return 0;
-    if (nd.isMastery) return 56;
-    if (nd.isWormhole) return 60;
-    if (nd.isKeystone) return 54;
-    if (nd.isNotable) return 40;
-    return 30;
+    const w = nd.isMastery
+      ? this.assets.worldSize("mastery", nd.icon ?? "", this.zk)
+      : this.assets.worldSize("frame", spriteKeysFor(nd, false, false)[2], this.zk);
+    return (w ?? 100) / 2;
   }
 
   private click(ev: PointerEvent): void {

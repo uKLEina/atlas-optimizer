@@ -63,7 +63,7 @@ async function init(): Promise<void> {
     buildQuickSets(data, g),
     buildBonusPoints(data),
   );
-  new Interaction(canvas, data, g.root, layout, viewport, state, tooltip, requestDraw).attach();
+  new Interaction(canvas, data, g.root, layout, assets, viewport, state, tooltip, requestDraw).attach();
 
   const solver = new SolverClient(
     data,
