@@ -7,7 +7,8 @@
 | フェーズ | 内容 | 状態 |
 |---|---|---|
 | 1 | Python リファレンス実装(`pyref/`) | ✅ 完了 |
-| 2 | TypeScript ソルバー + Web UI(`web/`) | 🚧 全マイルストーン完了、ユーザの最終目視確認のみ残 |
+| 2 | TypeScript ソルバー + Web UI(`web/`) | ✅ 完了、GitHub Pages 公開済み |
+| 3 | 木分解 Steiner DP への置換 | ✅ 完了(2026-08-15) |
 
 ## フェーズ2 マイルストーン
 
@@ -39,7 +40,7 @@ UIから作ると「動いているように見えるが正しさが不明」な
    Playwright E2E で描画・クリック3状態・mastery一括・ignored表示・エクスポートを検証済み。
    起動: `cd web && npm run dev`
 
-## フェーズ3: treewidth DP への置換(計画。2026-08-15 に構造分析済み、着手前)
+## フェーズ3: treewidth DP への置換 — ✅ 完了(2026-08-15)
 
 ### 動機と実測(アルゴリズム再考の結果)
 
@@ -77,24 +78,24 @@ LP緩和が K とともに緩むこと、(b) タイブレーク(フェーズ2)�
 
 ### マイルストーン
 
-0. **共通前処理: 隣接 terminal 縮約**(DP と独立、現行 ILP にも即効)
+0. ✅ **共通前処理: 隣接 terminal 縮約**(DP と独立、現行 ILP にも即効)
    ノード重み Steiner では辺コストが無いため、「隣接する terminal 間の辺は使って損が
    ない」が成立し、**指定ノードの連結成分を1個のスーパーターミナルへ縮約してよい**
    (root も同性質なので root に隣接する成分は root へ融合)。厳密性は不変。
    実測効果: Map Mod Effect 16→1、クイックセット全部 68→13、密ビルド 91→35。
    縮約内部はタイブレーク対象からも消える。reduction(pyref/TS 両方)に実装し、
    通常の検証フルコース(pytest / fuzz / crosscheck)を通す
-1. **pyref: 木分解** — min-fill ヒューリスティック + 幅・正当性検証ユーティリティ
-2. **pyref: 辞書式 Steiner DP**(`dp.py`)— rooted・ノード重み・除外・ignored terminal 対応
-3. **pyref: fuzz ピラミッドに DP 層を追加** — vs ilp_reduced で points 一致(100+ケース)、
+1. ✅ **pyref: 木分解**(width=7、構築0.03秒) — min-fill ヒューリスティック + 幅・正当性検証ユーティリティ
+2. ✅ **pyref: 辞書式 Steiner DP**(`dp.py`)— rooted・ノード重み・除外・ignored terminal 対応
+3. ✅ **pyref: fuzz ピラミッドに DP 層を追加**(累計400ケース all OK) — vs ilp_reduced で points 一致(100+ケース)、
    小ケースでは ε 目的値も厳密照合。既存 pytest 全件を DP でも通す。
    **ここが品質ゲート。通るまで次に進まない**
-4. **pyref: デフォルトソルバーを DP に切替**(ILP はオラクルとして温存)、ベンチ更新
-5. **TS: DP 移植** — crosscheck を「pyref DP vs TS DP」に拡張。決定的になるため
+4. ✅ **pyref: デフォルトソルバーを DP に切替**(ILP はオラクルとして温存)、ベンチ更新
+5. ✅ **TS: DP 移植**(逐語移植。crosscheck 104ケースでノード集合完全一致) — crosscheck を「pyref DP vs TS DP」に拡張。決定的になるため
    points だけでなく**ノード集合の完全一致**まで照合を格上げする
-6. **web: worker を DP に差し替え** — highs-js を dev 依存(テスト専用)へ降格。
+6. ✅ **web: worker を DP に差し替え**(バンドル 3.4MB→336KB、デバウンス150msへ) — highs-js を dev 依存(テスト専用)へ降格。
    プリエンプション機構・デバウンスは現状維持
-7. ベンチ・実機確認・DESIGN.md / CLAUDE.md 更新
+7. ✅ ベンチ・実機確認・DESIGN.md / CLAUDE.md 更新(ブラウザ実測: ソルブ0.12秒)
 
 フォールバック: ステージ3の照合が難航した場合は「ブロック分解 + 中央網のみ ILP +
 局所交換タイブレーク」(中規模工事案)へ切り替える。

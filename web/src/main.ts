@@ -21,7 +21,8 @@ import { AppState } from "./ui/state";
 import { Tooltip } from "./ui/tooltip";
 import { Viewport } from "./ui/viewport";
 
-const SOLVE_DEBOUNCE_MS = 300;
+// DP 化(フェーズ3)でソルブが ~0.1 秒級になったため短めでよい
+const SOLVE_DEBOUNCE_MS = 150;
 
 async function init(): Promise<void> {
   const loading = document.getElementById("loading")!;

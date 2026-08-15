@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 """TS版照合用のケース+期待値生成器 — fuzz ピラミッドの越境版。
 
-検証済みの pyref ilp_reduced をオラクルとして、ランダムケースの期待値
-(points / ignored_terminals)を JSON に焼き込む。TS 側は
-`cd web && CROSSCHECK_CASES=<file> npm run crosscheck` で全一致を検証する。
+検証済みの pyref ilp_reduced をオラクルとして points / ignored_terminals を焼き込み、
+さらに pyref DP(決定的)のノード集合も焼き込む。TS 側は
+`cd web && CROSSCHECK_CASES=<file> npm run crosscheck` で、TS DP が
+points / ignored の一致に加えて**ノード集合単位で pyref DP と完全一致**することを
+検証する(DP は両実装とも決定的なため集合一致まで要求できる)。
 
 - ケースごとの乱数は "{seed}:{index}" から導出(fuzz.py と同じ。並列度によらず再現可能)
 - 期待値として使えるのは最適性証明付きの解のみ。time limit 等で証明できなかった
@@ -24,7 +26,8 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from atlasopt import ilp_reduced, load
+from atlasopt import dp, ilp_reduced, load
+from atlasopt.decomposition import build_decomposition
 from atlasopt.graph import AtlasGraph
 from atlasopt.validate import validate
 
@@ -40,16 +43,18 @@ SPECIALS = (
 )
 
 _g: AtlasGraph | None = None
+_td = None
 _args = None
 
 
 def _init_worker(data_path, args) -> None:
-    global _g, _args
+    global _g, _td, _args
     _g = load(data_path)
+    _td = build_decomposition(_g.adj, _g.root)
     _args = args
 
 
-def _solve_case(g, terms, excluded, time_limit):
+def _solve_case(g, td, terms, excluded, time_limit):
     """1ケースを解いて出力用 dict を返す。非最適なら None、オラクル異常なら例外。"""
     res = ilp_reduced.solve(g, terms, excluded, time_limit=time_limit)
     problems = validate(g, res, terms, excluded)
@@ -57,10 +62,25 @@ def _solve_case(g, terms, excluded, time_limit):
         raise AssertionError(f"oracle produced invalid solution: {problems}")
     if res.status != "optimal":
         return None
+    # DP(決定的)のノード集合も期待値に焼き込む。ILP オラクルとの一致は生成時に検証
+    res_dp = dp.solve(g, terms, excluded=excluded, td=td)
+    problems = validate(g, res_dp, terms, excluded)
+    if problems:
+        raise AssertionError(f"dp produced invalid solution: {problems}")
+    if res_dp.points != res.points or tuple(res_dp.ignored_terminals) != tuple(
+        res.ignored_terminals
+    ):
+        raise AssertionError(
+            f"dp/ilp mismatch: dp={res_dp.points} ilp={res.points} terms={terms}"
+        )
     return {
         "terminals": list(terms),
         "excluded": list(excluded),
-        "expected": {"points": res.points, "ignored": list(res.ignored_terminals)},
+        "expected": {
+            "points": res.points,
+            "ignored": list(res.ignored_terminals),
+            "dpNodes": sorted(res_dp.nodes),
+        },
         "pyrefSolveTime": round(res.solve_time, 3),
     }
 
@@ -73,7 +93,7 @@ def run_case(index: int, seed: int):
     excluded = []
     if rng.random() < 0.5:
         excluded = rng.sample(nodes, rng.randint(1, 15))
-    return index, _solve_case(_g, terms, excluded, _args.time_limit)
+    return index, _solve_case(_g, _td, terms, excluded, _args.time_limit)
 
 
 def main() -> None:
@@ -89,9 +109,10 @@ def main() -> None:
     t0 = time.time()
     g = load(args.data)
 
+    td = build_decomposition(g.adj, g.root)
     emitted = []
     for terms, excluded in SPECIALS:
-        payload = _solve_case(g, terms, excluded, args.time_limit)
+        payload = _solve_case(g, td, terms, excluded, args.time_limit)
         assert payload is not None, "special case must be optimal"
         emitted.append(payload)
 

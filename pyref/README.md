@@ -78,3 +78,11 @@ cd ../web && CROSSCHECK_CASES=/tmp/cc.json npm run crosscheck
    (<https://cdn.poeplanner.com/json/versions.json> の `atlasVersions` 参照)
 4. `pytest` と `fuzz.py` を再実行
 5. crosscheck fixture を再生成し(上記)、`cd web && npm test && npm run crosscheck` を通す
+
+木分解・DP は実行時にデータから毎回計算するため、構造変化への追加作業は無い。
+ただし `test_decomposition.py` が **treewidth 上界 ≤ 7 をアサート**しており、
+新リーグでグラフが濃くなって幅が上がるとここで落ちる(性能劣化の早期検知が目的)。
+落ちた場合は `python -m atlasopt bench` で DP の実測時間を確認し、
+実用域(<1秒)なら上界の数字を更新して続行してよい。幅が大きく跳ねた場合の保険として、
+照合オラクルの ILP(`ilp_reduced.py` / `web/src/solver/ilpReduced.ts`)は
+本番切り替え可能な完全動作状態で温存している(worker の import を戻すだけ)。
