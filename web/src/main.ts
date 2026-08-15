@@ -2,6 +2,9 @@
  * エントリポイント: データ取得 → グラフ/レイアウト/アセット準備 → UI 配線。
  */
 
+// フォントは同梱配信(外部リクエスト無し・オフライン可)。UI は Inter、タイトルは Cinzel
+import "@fontsource-variable/inter";
+import "@fontsource/cinzel/600.css";
 import "./style.css";
 import { buildGraph, type AtlasData } from "./data/graph";
 import { SolverClient } from "./solver/client";
