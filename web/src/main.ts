@@ -61,8 +61,14 @@ async function init(): Promise<void> {
   );
   let debounceTimer: number | undefined;
   state.onMarksChange(() => {
-    state.setSolving();
     window.clearTimeout(debounceTimer);
+    if (state.terminals().length === 0) {
+      // 解くものが無い(リセット直後など)。ソルバーを呼ばず即座に初期表示へ
+      solver.cancel();
+      state.clearResult();
+      return;
+    }
+    state.setSolving();
     debounceTimer = window.setTimeout(() => {
       solver.request(state.terminals(), state.excluded());
     }, SOLVE_DEBOUNCE_MS);

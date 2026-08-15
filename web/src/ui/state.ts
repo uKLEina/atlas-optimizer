@@ -105,6 +105,14 @@ export class AppState {
     this.emit(false);
   }
 
+  /** 結果を即座に破棄して初期表示へ(terminal が無くなった時。ソルブ不要) */
+  clearResult(): void {
+    this.result = null;
+    this.solving = false;
+    this.solveError = null;
+    this.emit(false);
+  }
+
   setResult(r: SolveResult): void {
     this.result = r;
     this.solving = false;

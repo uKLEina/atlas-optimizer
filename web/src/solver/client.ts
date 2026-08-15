@@ -56,6 +56,16 @@ export class SolverClient {
     this.worker.postMessage({ type: "init", data: this.data } satisfies WorkerRequest);
   }
 
+  /**
+   * 未着手・進行中の要求を取り消す。世代を進めるので進行中 solve の応答は
+   * 中身だけ捨てられる(busy 解除と flush は通常どおり動く)
+   */
+  cancel(): void {
+    this.gen++;
+    this.pending = null;
+    this.last = null;
+  }
+
   request(terminals: string[], excluded: string[]): void {
     this.gen++;
     this.last = { terminals, excluded };
