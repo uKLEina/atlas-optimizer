@@ -121,7 +121,6 @@ export class Interaction {
     const [wx, wy] = this.screenToWorld(ev);
     const id = this.hitTest(wx, wy);
     this.state.setHover(id);
-    this.canvas.style.cursor = id ? "pointer" : "grab";
     if (id && id !== this.rootId) {
       const nd = this.data.nodes[id];
       if (nd && (nd.name || (nd.stats?.length ?? 0) > 0)) {

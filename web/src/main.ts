@@ -8,6 +8,7 @@ import { SolverClient } from "./solver/client";
 import { Assets } from "./ui/assets";
 import { Interaction } from "./ui/interaction";
 import { buildLayout } from "./ui/layout";
+import { buildMasteryIndex } from "./ui/masteryIndex";
 import { Panel } from "./ui/panel";
 import { Renderer } from "./ui/renderer";
 import { AppState } from "./ui/state";
@@ -32,14 +33,15 @@ async function init(): Promise<void> {
     loading.textContent = `アセット読み込み中… ${done}/${total}`;
   });
 
-  const state = new AppState(g);
+  const masteryIndex = buildMasteryIndex(data);
+  const state = new AppState(g, masteryIndex);
   const viewport = new Viewport(canvas);
-  const renderer = new Renderer(canvas, data, g, layout, assets, viewport, state);
 
   let dirty = true;
   const requestDraw = (): void => {
     dirty = true;
   };
+  const renderer = new Renderer(canvas, data, g, layout, assets, viewport, state, masteryIndex);
   const frame = (): void => {
     if (dirty) {
       dirty = false;
@@ -83,6 +85,7 @@ async function init(): Promise<void> {
     state,
     viewport,
     layout,
+    renderer,
     requestDraw,
   };
 }

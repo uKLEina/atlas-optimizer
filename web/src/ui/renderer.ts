@@ -1,16 +1,23 @@
 /**
- * canvas 描画。描画順: 背景 → グループ背景 → エッジ → スタート装飾 →
- * ノード(アイコン+フレーム)→ mastery → 指定/除外リング。
+ * canvas 描画(毎フレーム直接描画)。
  *
- * ctx の変換に world→screen(scale + offset、DPR込み)を積むので、
- * 以降の座標・サイズは全てワールド単位(ツリー単位)で書く。
+ * 背景 → グループ背景 → エッジ → スタート装飾 → ノード → 指定/除外リング →
+ * hover 強調を、毎フレーム canvas に直接描く(PoE Planner / Path of Pathing と同方式)。
+ * スプライトは常に最高解像度のシートを使い、縮小は canvas の変換に任せる。
+ * ズーム中のシート切替・タイル再生成が無いため拡縮が滑らかで、
+ * pan で未描画領域が残ることも構造的にない。
+ * 重さは可視範囲カリング(ノード・エッジ)と、エッジのスタイル別一括ストロークで抑える。
+ *
+ * ctx にはワールド→スクリーン変換(scale + offset、DPR込み)を積むので、
+ * 描画コードの座標・サイズは全てワールド単位(ツリー単位)で書く。
  */
 
 import type { AtlasData, AtlasGraph, AtlasNode } from "../data/graph";
 import type { Assets } from "./assets";
 import type { TreeLayout } from "./layout";
+import type { MasteryIndex } from "./masteryIndex";
 import type { AppState } from "./state";
-import type { Viewport } from "./viewport";
+import type { Viewport, WorldBounds } from "./viewport";
 
 const TAU = Math.PI * 2;
 
@@ -22,10 +29,13 @@ const COLOR = {
   terminal: "#43c26b",
   excluded: "#e5484d",
   ignored: "#e8a33d",
+  masteryHighlight: "#ffd63c",
 };
 
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
+  /** 常に最高解像度のシートを使う(LOD切替なし) */
+  private readonly zk: string;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -35,10 +45,12 @@ export class Renderer {
     private readonly assets: Assets,
     private readonly viewport: Viewport,
     private readonly state: AppState,
+    private readonly masteryIndex: MasteryIndex,
   ) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2d context unavailable");
     this.ctx = ctx;
+    this.zk = assets.zoomKeys[assets.zoomKeys.length - 1]!;
   }
 
   /** CSSサイズ×DPRで実ピクセルを合わせる。リサイズ時に呼ぶ */
@@ -52,6 +64,7 @@ export class Renderer {
   draw(): void {
     const { ctx, viewport } = this;
     const dpr = window.devicePixelRatio || 1;
+
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = COLOR.bg;
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -60,27 +73,28 @@ export class Renderer {
     ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * viewport.offsetX, dpr * viewport.offsetY);
     ctx.imageSmoothingEnabled = true;
 
-    const zk = this.assets.pickZoom(s * dpr);
     const view = viewport.visibleWorldRect(400);
     const inView = (x: number, y: number): boolean =>
       x >= view.minX && x <= view.maxX && y >= view.minY && y <= view.maxY;
 
-    this.drawBackdrop(zk);
-    this.drawGroupBackgrounds(zk, inView);
-    this.drawEdges();
-    this.drawStartDecoration(zk);
-    this.drawNodes(zk, inView);
-    this.drawRings(inView);
+    this.drawBackdrop(ctx);
+    this.drawGroupBackgrounds(ctx, inView);
+    this.drawEdges(ctx, view);
+    this.drawStartDecoration(ctx);
+    this.drawNodes(ctx, inView);
+    this.drawRings(ctx, inView);
+    this.drawHoverOverlay(ctx);
+    this.drawMasteryHighlight(ctx);
   }
 
-  private drawBackdrop(zk: string): void {
+  private drawBackdrop(ctx: CanvasRenderingContext2D): void {
     const b = this.layout.bounds;
     const pad = 900;
     this.assets.drawStretched(
-      this.ctx,
+      ctx,
       "atlasBackground",
       "AtlasPassiveBackground",
-      zk,
+      this.zk,
       b.minX - pad,
       b.minY - pad,
       b.maxX - b.minX + pad * 2,
@@ -88,7 +102,10 @@ export class Renderer {
     );
   }
 
-  private drawGroupBackgrounds(zk: string, inView: (x: number, y: number) => boolean): void {
+  private drawGroupBackgrounds(
+    ctx: CanvasRenderingContext2D,
+    inView: (x: number, y: number) => boolean,
+  ): void {
     const groups = this.data.groups ?? {};
     for (const group of Object.values(groups)) {
       const bg = group.background;
@@ -96,62 +113,96 @@ export class Renderer {
       const x = group.x + (bg.offsetX ?? 0);
       const y = group.y + (bg.offsetY ?? 0);
       if (!inView(x, y)) continue;
-      this.assets.draw(this.ctx, "groupBackground", bg.image, zk, x, y);
+      this.assets.draw(ctx, "groupBackground", bg.image, this.zk, x, y);
     }
   }
 
-  private drawEdges(): void {
-    const { ctx } = this;
+  private drawEdges(ctx: CanvasRenderingContext2D, view: WorldBounds): void {
     const solved = this.state.result?.nodes;
-    ctx.lineCap = "round";
+    // スタイル別に1本の Path2D へまとめ、stroke は3回で済ませる(毎フレーム描画の要)
+    const styles = [
+      { color: COLOR.edge, width: 8, path: new Path2D() },
+      { color: COLOR.edgeHalf, width: 8, path: new Path2D() },
+      { color: COLOR.edgeActive, width: 12, path: new Path2D() },
+    ] as const;
     for (const e of this.layout.edges) {
-      const active = (solved?.has(e.u) ?? false) && (solved?.has(e.v) ?? false);
-      const half = !active && ((solved?.has(e.u) ?? false) || (solved?.has(e.v) ?? false));
-      ctx.strokeStyle = active ? COLOR.edgeActive : half ? COLOR.edgeHalf : COLOR.edge;
-      ctx.lineWidth = active ? 12 : 8;
-      ctx.beginPath();
+      const pu = this.layout.positions.get(e.u)!;
+      const pv = this.layout.positions.get(e.v)!;
       if (e.kind === "arc") {
-        ctx.arc(e.cx!, e.cy!, e.r!, e.a0!, e.a1!, false);
-      } else {
-        const pu = this.layout.positions.get(e.u)!;
-        const pv = this.layout.positions.get(e.v)!;
-        ctx.moveTo(pu.x, pu.y);
-        ctx.lineTo(pv.x, pv.y);
+        const cx = e.cx!;
+        const cy = e.cy!;
+        const r = e.r!;
+        if (cx + r < view.minX || cx - r > view.maxX || cy + r < view.minY || cy - r > view.maxY)
+          continue;
+      } else if (
+        Math.max(pu.x, pv.x) < view.minX ||
+        Math.min(pu.x, pv.x) > view.maxX ||
+        Math.max(pu.y, pv.y) < view.minY ||
+        Math.min(pu.y, pv.y) > view.maxY
+      ) {
+        continue;
       }
-      ctx.stroke();
+      const su = solved?.has(e.u) ?? false;
+      const sv = solved?.has(e.v) ?? false;
+      const path = styles[su && sv ? 2 : su || sv ? 1 : 0].path;
+      if (e.kind === "arc") {
+        path.moveTo(e.cx! + e.r! * Math.cos(e.a0!), e.cy! + e.r! * Math.sin(e.a0!));
+        path.arc(e.cx!, e.cy!, e.r!, e.a0!, e.a1!, false);
+      } else {
+        path.moveTo(pu.x, pu.y);
+        path.lineTo(pv.x, pv.y);
+      }
+    }
+    ctx.lineCap = "round";
+    for (const st of styles) {
+      ctx.strokeStyle = st.color;
+      ctx.lineWidth = st.width;
+      ctx.stroke(st.path);
     }
   }
 
-  private drawStartDecoration(zk: string): void {
+  private drawStartDecoration(ctx: CanvasRenderingContext2D): void {
     const p = this.layout.positions.get(this.g.root);
     if (!p) return;
-    this.assets.draw(this.ctx, "startNode", "AtlasPassiveSkillScreenStart", zk, p.x, p.y);
+    this.assets.draw(ctx, "startNode", "AtlasPassiveSkillScreenStart", this.zk, p.x, p.y);
   }
 
-  private drawNodes(zk: string, inView: (x: number, y: number) => boolean): void {
+  private drawNodes(
+    ctx: CanvasRenderingContext2D,
+    inView: (x: number, y: number) => boolean,
+  ): void {
     const solved = this.state.result?.nodes;
-    const hover = this.state.hover;
     for (const [id, p] of this.layout.positions) {
       if (!inView(p.x, p.y)) continue;
       if (id === this.g.root) continue; // スタート装飾が本体
       const nd = this.data.nodes[id];
       if (!nd) continue;
-      const allocated = solved?.has(id) ?? false;
-      const hovered = hover === id;
       if (nd.isMastery) {
-        this.assets.draw(this.ctx, "mastery", nd.icon ?? "", zk, p.x, p.y);
+        this.assets.draw(ctx, "mastery", nd.icon ?? "", this.zk, p.x, p.y);
         continue;
       }
-      const [iconSheet, iconKey, frameKey] = spriteKeysFor(nd, allocated, hovered);
-      this.assets.draw(this.ctx, iconSheet, iconKey, zk, p.x, p.y, { clipCircle: true });
-      this.assets.draw(this.ctx, "frame", frameKey, zk, p.x, p.y);
+      this.drawNode(ctx, nd, p.x, p.y, solved?.has(id) ?? false, false);
     }
   }
 
-  private drawRings(inView: (x: number, y: number) => boolean): void {
-    const { ctx } = this;
+  private drawNode(
+    ctx: CanvasRenderingContext2D,
+    nd: AtlasNode,
+    x: number,
+    y: number,
+    allocated: boolean,
+    hovered: boolean,
+  ): void {
+    const [iconSheet, iconKey, frameKey] = spriteKeysFor(nd, allocated, hovered);
+    this.assets.draw(ctx, iconSheet, iconKey, this.zk, x, y, { clipCircle: true });
+    this.assets.draw(ctx, "frame", frameKey, this.zk, x, y);
+  }
+
+  private drawRings(
+    ctx: CanvasRenderingContext2D,
+    inView: (x: number, y: number) => boolean,
+  ): void {
     const ignored = new Set(this.state.result?.ignoredTerminals ?? []);
-    const zk = this.assets.pickZoom(this.viewport.scale);
     const targets: [string, "terminal" | "excluded"][] = [];
     for (const id of this.state.terminals()) targets.push([id, "terminal"]);
     for (const id of this.state.excluded()) targets.push([id, "excluded"]);
@@ -160,7 +211,7 @@ export class Renderer {
       if (!p || !inView(p.x, p.y)) continue;
       const nd = this.data.nodes[id];
       const frameW = nd
-        ? (this.assets.worldSize("frame", spriteKeysFor(nd, false, false)[2], zk) ?? 90)
+        ? (this.assets.worldSize("frame", spriteKeysFor(nd, false, false)[2], this.zk) ?? 90)
         : 90;
       const r = frameW / 2 + 10;
       ctx.lineWidth = 7;
@@ -181,6 +232,37 @@ export class Renderer {
         ctx.lineTo(p.x + d, p.y + d);
         ctx.stroke();
       }
+    }
+  }
+
+  /** hover 中ノードの強調(icon+frame を hover 状態で重ね描き) */
+  private drawHoverOverlay(ctx: CanvasRenderingContext2D): void {
+    const hover = this.state.hover;
+    if (!hover || hover === this.g.root) return;
+    const nd = this.data.nodes[hover];
+    const p = this.layout.positions.get(hover);
+    if (!nd || !p || nd.isMastery) return;
+    const allocated = this.state.result?.nodes.has(hover) ?? false;
+    this.drawNode(ctx, nd, p.x, p.y, allocated, true);
+  }
+
+  /**
+   * mastery hover 時、同名 mastery ノード(全クラスタ)へ黄色オーバーレイを重ねて
+   * 位置を示す(PoE Planner 踏襲。ユーザレビューにより Notable ではなく mastery 側)
+   */
+  private drawMasteryHighlight(ctx: CanvasRenderingContext2D): void {
+    const hover = this.state.hover;
+    if (!hover || !this.data.nodes[hover]?.isMastery) return;
+    ctx.fillStyle = `${COLOR.masteryHighlight}44`;
+    ctx.strokeStyle = COLOR.masteryHighlight;
+    ctx.lineWidth = 6;
+    for (const id of [hover, ...(this.masteryIndex.siblings.get(hover) ?? [])]) {
+      const p = this.layout.positions.get(id);
+      if (!p) continue;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 62, 0, TAU);
+      ctx.fill();
+      ctx.stroke();
     }
   }
 }

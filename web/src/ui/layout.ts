@@ -71,14 +71,17 @@ export function buildLayout(data: AtlasData): TreeLayout {
   }
 
   // エッジ収集(無向・重複排除)。mastery は装飾なので辺を張らない
-  // (実データに in/out を持つ mastery が1個だけ存在する。グラフ層と同様に無視する)
+  // (実データに in/out を持つ mastery が1個だけ存在する。グラフ層と同様に無視する)。
+  // Wormhole 同士を結ぶ長距離辺も描画しない(ソルバーは使う。表示上の違和感対策)
   const edges: LayoutEdge[] = [];
   const seen = new Set<string>();
   for (const [nid, nd] of Object.entries(data.nodes)) {
     if (nid === "root" || nd.isMastery) continue;
     for (const other of [...(nd.out ?? []), ...(nd.in ?? [])]) {
       if (other === nid || other === "root") continue;
-      if (data.nodes[other]?.isMastery) continue;
+      const otherNode = data.nodes[other];
+      if (otherNode?.isMastery) continue;
+      if (nd.isWormhole && otherNode?.isWormhole) continue;
       if (!positions.has(other) || !positions.has(nid)) continue;
       const key = nid < other ? `${nid}|${other}` : `${other}|${nid}`;
       if (seen.has(key)) continue;

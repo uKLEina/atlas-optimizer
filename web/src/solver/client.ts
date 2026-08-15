@@ -1,7 +1,10 @@
 /**
  * ソルバー worker のメインスレッド側クライアント。
+ *
  * - solve 実行中に来た要求は「最新1件だけ」保持し、完了後に投げる
- * - 世代カウンタで古い応答を捨てる
+ * - 世代カウンタで古い応答の**中身**だけ捨てる。busy 解除と pending の送出は
+ *   応答の新旧に関わらず必ず行う(かつてここを怠って連打デッドロックを起こした)
+ * - worker がクラッシュしたら自動で再起動し、最新の要求を投げ直す
  */
 
 import type { AtlasData } from "../data/graph";
@@ -9,17 +12,22 @@ import type { SolveResult } from "./result";
 import type { WorkerRequest, WorkerResponse } from "./worker";
 
 export class SolverClient {
-  private readonly worker: Worker;
+  private worker!: Worker;
   private gen = 0;
   private busy = false;
   private pending: { terminals: string[]; excluded: string[] } | null = null;
+  private last: { terminals: string[]; excluded: string[] } | null = null;
 
   constructor(
-    data: AtlasData,
+    private readonly data: AtlasData,
     private readonly onResult: (r: SolveResult) => void,
     private readonly onError: (message: string) => void,
     private readonly onReady?: () => void,
   ) {
+    this.spawn();
+  }
+
+  private spawn(): void {
     this.worker = new Worker(new URL("./worker.ts", import.meta.url), {
       type: "module",
     });
@@ -29,17 +37,28 @@ export class SolverClient {
         this.onReady?.();
         return;
       }
-      if (msg.gen !== this.gen) return; // 古い応答は捨てる
       this.busy = false;
-      if (msg.type === "result") this.onResult(msg.result);
-      else this.onError(msg.message);
+      if (msg.gen === this.gen) {
+        if (msg.type === "result") this.onResult(msg.result);
+        else this.onError(msg.message);
+      }
       this.flush();
     };
-    this.post({ type: "init", data });
+    this.worker.onerror = () => {
+      // worker が死んだ(WASM の abort 等)。作り直して最新の要求を投げ直す
+      this.worker.terminate();
+      this.busy = false;
+      this.spawn();
+      if (!this.pending && this.last) this.pending = this.last;
+      // ready を待たずに post してよい(worker 側が init 完了を待つ)
+      this.flush();
+    };
+    this.worker.postMessage({ type: "init", data: this.data } satisfies WorkerRequest);
   }
 
   request(terminals: string[], excluded: string[]): void {
     this.gen++;
+    this.last = { terminals, excluded };
     if (this.busy) {
       this.pending = { terminals, excluded };
       return;
@@ -49,7 +68,7 @@ export class SolverClient {
   }
 
   private flush(): void {
-    if (!this.pending) return;
+    if (!this.pending || this.busy) return;
     const { terminals, excluded } = this.pending;
     this.pending = null;
     this.busy = true;

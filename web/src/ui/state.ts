@@ -3,13 +3,14 @@
  *
  * UI要件(DESIGN.md):
  * - クリックで「指定→除外→中立」の3状態トグル
- * - mastery クリックは同グループの全 Notable へ一括適用
- *   (全員同状態なら次の状態へ巡回、混在なら全員「指定」。Notable 無しグループは no-op)
+ * - mastery クリックは**同名 mastery 全クラスタ**の Notable へ一括適用
+ *   (全員同状態なら次の状態へ巡回、混在なら全員「指定」。Notable 無しなら no-op)
  * - root は常に起点なのでトグル対象外
  */
 
 import type { AtlasGraph } from "../data/graph";
 import type { SolveResult } from "../solver/result";
+import type { MasteryIndex } from "./masteryIndex";
 
 export type NodeMark = "none" | "terminal" | "excluded";
 
@@ -30,7 +31,10 @@ export class AppState {
   solveError: string | null = null;
   hover: string | null = null;
 
-  constructor(private readonly g: AtlasGraph) {}
+  constructor(
+    private readonly g: AtlasGraph,
+    private readonly masteryIndex: MasteryIndex,
+  ) {}
 
   /** あらゆる変化(再描画・パネル更新用) */
   subscribe(fn: Listener): void {
@@ -61,9 +65,9 @@ export class AppState {
     return true;
   }
 
-  /** mastery クリック: 同グループ Notable 群への一括適用 */
+  /** mastery クリック: 同名 mastery 全クラスタの Notable 群への一括適用 */
   masteryClick(masteryId: string): boolean {
-    const notables = this.g.masteryNotables.get(masteryId);
+    const notables = this.masteryIndex.notables.get(masteryId);
     if (!notables || notables.length === 0) return false;
     const states = notables.map((n) => this.markOf(n));
     const uniform = states.every((s) => s === states[0]);

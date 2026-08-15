@@ -27,8 +27,9 @@ it("全実ノードに座標がある(擬似rootは無い)", () => {
   expect(layout.positions.has("root")).toBe(false);
 });
 
-it("エッジは1003本、重複なし、弧は諸元を持つ", () => {
-  expect(layout.edges.length).toBe(1003);
+it("エッジは1000本(1003 − Wormholeペア3本)、重複なし、弧は諸元を持つ", () => {
+  // Wormhole 同士の長距離辺(3ペア)は描画しない仕様
+  expect(layout.edges.length).toBe(1000);
   const seen = new Set<string>();
   let arcs = 0;
   for (const e of layout.edges) {
