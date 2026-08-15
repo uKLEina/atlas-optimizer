@@ -43,7 +43,10 @@ export interface SolveOptions {
   timeLimit?: number;
   /** タイブレーク用のノード重み(非負。整数ティア推奨)。省略時は従来どおり */
   nodeWeights?: ReadonlyMap<string, number>;
-  /** フェーズ2の時間上限(秒)。超えたらフェーズ1の経路のまま返す */
+  /**
+   * フェーズ2の時間上限(秒)。時間切れでも暫定解が有効(整数かつ同点)なら採用し、
+   * 無ければフェーズ1の経路のまま返す
+   */
   phase2TimeLimit?: number;
 }
 
@@ -53,7 +56,7 @@ export function solve(
   terminals: Iterable<string>,
   options: SolveOptions = {},
 ): SolveResult {
-  const { excluded = [], timeLimit = 60, nodeWeights, phase2TimeLimit = 15 } = options;
+  const { excluded = [], timeLimit = 60, nodeWeights, phase2TimeLimit = 3 } = options;
   if (nodeWeights) {
     for (const w of nodeWeights.values()) {
       if (w < 0) throw new Error("nodeWeights must be non-negative");
@@ -250,10 +253,28 @@ export function solve(
       Math.max(timeLimit - (performance.now() - t0) / 1000, 1),
       phase2TimeLimit,
     );
-    // 選好はベストエフォートなので、フェーズ2だけ相対ギャップを緩めて証明を軽くする。
+    // 選好はベストエフォートなので、フェーズ2はギャップを緩めて証明を軽くする。
     // ポイント数の厳密性は同点等式制約が保証しており、ここには影響しない
-    const sol2 = highs.solve(lp2, { time_limit: remaining, mip_rel_gap: 0.02 });
-    if (sol2.Status === "Optimal") sol = sol2;
+    const sol2 = highs.solve(lp2, { time_limit: remaining, mip_rel_gap: 0.02, mip_abs_gap: 3 });
+    // 密ビルドではフェーズ2の最適性証明が終わらないことがある(同点の木が大量で
+    // LP下界が弱い)。時間切れでも暫定解が有効なら採用する。採用条件は自前で検証:
+    // 全整数変数が 0/1 に整数化していて、かつ展開後のポイントがフェーズ1の最適値と
+    // 一致すること。どちらかでも欠ければフェーズ1の解へフォールバックする
+    if (sol2.Status === "Optimal" || sol2.Status === "Time limit reached") {
+      const integral = [...V.map(yName), ...arcs.map((_, ai) => xName(ai))].every((nm) => {
+        const col = sol2.Columns[nm];
+        if (!col || !("Primal" in col)) return false;
+        return Math.abs(col.Primal - Math.round(col.Primal)) < 1e-6;
+      });
+      if (integral) {
+        try {
+          const cand = toResult(sol2);
+          if (cand.points === pointsObj) return cand;
+        } catch {
+          // 抽出に失敗(暫定解なし)。フェーズ1へフォールバック
+        }
+      }
+    }
   }
 
   return toResult(sol);

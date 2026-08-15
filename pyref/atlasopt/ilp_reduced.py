@@ -112,15 +112,16 @@ def solve(
     has_weights = any(wt(v, 0.0) for v in V) or any(e for _, _, _, e in arcs)
     if status == "optimal" and has_weights:
         points_obj = round(h1.getObjectiveValue())  # フェーズ1は整数コストなので丸めで厳密
-        remaining = min(max(time_limit - (time.time() - t0), 1.0), 15.0)
+        remaining = min(max(time_limit - (time.time() - t0), 1.0), 3.0)
         h2 = base_model(
             remaining,
             y_costs=[float(wt(v, 0.0)) for v in V],
             arc_costs=[float(e) for _, _, _, e in arcs],
         )
-        # 選好はベストエフォートなので相対ギャップを緩めて証明を軽くする
+        # 選好はベストエフォートなのでギャップを緩めて証明を軽くする
         # (ポイント数の厳密性は下の同点等式制約が保証しており、ここには影響しない)
         h2.setOptionValue("mip_rel_gap", 0.02)
+        h2.setOptionValue("mip_abs_gap", 3.0)
         idxs = [vidx[v] for v in V if g.cost(v)] + [X(ai) for ai, a in enumerate(arcs) if a[2]]
         vals = [float(g.cost(v)) for v in V if g.cost(v)] + [
             float(a[2]) for a in arcs if a[2]
@@ -136,8 +137,20 @@ def solve(
         eps_cut = sum(c * sol.col_value[i] for i, c in zip(eps_idxs, eps_vals))
         h2.addRow(-INF, eps_cut + 1e-6, len(eps_idxs), eps_idxs, eps_vals)
         h2.run()
-        if status_of(h2) == "optimal":
-            sol = h2.getSolution()
+        # 密ビルドではフェーズ2の最適性証明が終わらないことがある(同点の木が大量で
+        # LP下界が弱い)。時間切れでも暫定解が有効なら採用する。採用条件は自前で検証:
+        # 全整数変数が 0/1 に整数化していて、かつ展開後のポイントがフェーズ1の最適値と
+        # 一致すること。どちらかでも欠ければフェーズ1の解のまま
+        if status_of(h2) in ("optimal", "feasible"):
+            cand = h2.getSolution()
+            cv = cand.col_value
+            if len(cv) >= n + m and all(abs(v - round(v)) < 1e-6 for v in cv[: n + m]):
+                core2 = [V[i] for i in range(n) if cv[i] > 0.5]
+                used2 = [
+                    (arcs[ai][0], arcs[ai][1]) for ai in range(m) if cv[X(ai)] > 0.5
+                ]
+                if len(expand(red, core2, used2)) - 1 == points_obj:
+                    sol = cand
     dt = time.time() - t0
 
     core = [V[i] for i in range(n) if sol.col_value[i] > 0.5]
