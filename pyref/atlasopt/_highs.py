@@ -11,10 +11,6 @@ def new_model(time_limit: float) -> highspy.Highs:
     h = highspy.Highs()
     h.setOptionValue("output_flag", False)
     h.setOptionValue("time_limit", float(time_limit))
-    # 既定の相対ギャップ(1e-4)ではタイブレークの微小重み差が「最適」の範囲に
-    # 埋もれてしまうため 0 にする(絶対ギャップは既定 1e-6 のままで、重みの
-    # 最小刻み 1e-5 より小さいので選好は正しく効く)
-    h.setOptionValue("mip_rel_gap", 0.0)
     return h
 
 

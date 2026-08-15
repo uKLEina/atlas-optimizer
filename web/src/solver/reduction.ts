@@ -6,8 +6,9 @@
  * 2. root から到達不能になった terminal を無視リストへ(PoP踏襲。エラーにしない)
  * 3. 非terminalの葉を再帰的に刈り込み
  * 4. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
- * 5. 平行辺は最小コストのみ残す(コスト = w + タイブレーク微小重み eps の和。
- *    同一 w の平行チェーンの選択はここで決まるため、eps 込みで比較する)
+ * 5. 平行辺は (w, eps) の辞書式最小のみ残す(w = ポイント数が主、
+ *    タイブレーク重み eps は同点時のみ。同一 w の平行チェーンの選択は
+ *    ここで決まるため、eps を見ないとタイブレークが縮約段階で潰れてしまう)
  *
  * 縮約辺は内部ノード列を保持し、ソルバーが使った辺を元のノード集合に展開できる。
  * pyref の networkx.MultiGraph は「辺レコード配列 + ノード→辺ID集合」で代替する。
@@ -124,13 +125,14 @@ export function build(
     }
   }
 
-  // 平行辺は最小コスト(w + eps)のみ残して単純グラフ化(同値は先勝ち = pyref と同じ)
+  // 平行辺は (w, eps) 辞書式最小のみ残して単純グラフ化(同値は先勝ち = pyref と同じ)。
+  // 和で比べると eps が大きいときに w の優劣を覆しうる(厳密性が壊れる)
   const simple = new Map<string, ReducedEdge>();
   for (const e of edges) {
     if (!e.alive || e.u === e.v) continue;
     const key = edgeKey(e.u, e.v);
     const prev = simple.get(key);
-    if (!prev || e.w + e.eps < prev.w + prev.eps) {
+    if (!prev || e.w < prev.w || (e.w === prev.w && e.eps < prev.eps)) {
       const [u, v] = e.u < e.v ? [e.u, e.v] : [e.v, e.u];
       simple.set(key, { u, v, w: e.w, eps: e.eps, path: e.path });
     }

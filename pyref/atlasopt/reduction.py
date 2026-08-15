@@ -5,9 +5,9 @@
 2. root から到達不能になった terminal を無視リストへ(PoP踏襲。エラーにしない)
 3. 非terminalの葉を再帰的に刈り込み
 4. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
-5. 平行辺は最小コストのみ残す(コスト = w + タイブレーク微小重み eps の和。
-   同一 w の平行チェーンの選択はここで決まるため、eps 込みで比較しないと
-   タイブレークが縮約段階で潰れてしまう)
+5. 平行辺は (w, eps) の辞書式最小のみ残す(w = ポイント数が主、
+   タイブレーク重み eps は同点時のみ。同一 w の平行チェーンの選択は
+   ここで決まるため、eps を見ないとタイブレークが縮約段階で潰れてしまう)
 
 縮約辺は内部ノード列を保持し、ソルバーが使った辺を元のノード集合に展開できる。
 node_weights はタイブレーク用の微小ノード重み(ilp_reduced.solve 参照)。
@@ -88,8 +88,10 @@ def build(g: AtlasGraph, terminals, excluded=(), node_weights=None) -> ReducedGr
     for u, v, d in H.edges(data=True):
         if u == v:
             continue
-        cost = d["w"] + d["eps"]
-        if not S.has_edge(u, v) or cost < S[u][v]["w"] + S[u][v]["eps"]:
+        # (w, eps) の辞書式比較: ポイント数が主、タイブレーク重みは同点時のみ。
+        # 和で比べると eps が大きいときに w の優劣を覆しうる(厳密性が壊れる)
+        cost = (d["w"], d["eps"])
+        if not S.has_edge(u, v) or cost < (S[u][v]["w"], S[u][v]["eps"]):
             S.add_edge(u, v, w=d["w"], eps=d["eps"], path=d["path"])
 
     return ReducedGraph(

@@ -11,14 +11,13 @@
  *   6. 同: その他
  *   7. 指定と無関係な Mastery グループのノード(なるべく通らない)
  *
- * eps = tier × 1e-5(最大 7e-5)。全ノード合計でも 0.1 未満で、
- * ilp_reduced 側の「総和 < 0.5」保証によりポイント最適性は不変。
+ * 重みは整数ティア(0〜7)そのもの。2フェーズ辞書式(ilpReduced 参照)なので
+ * 重みは主目的に混ざらず、スケールは相対比較にしか使われない。
+ * 整数にするのはフェーズ2の目的関数の整数性(=ソルバーの枝刈り)のため。
  * 複数 stat を持つノードは最も優先度の高い(小さい)tier を採用する。
  */
 
 import type { AtlasData, AtlasGraph } from "../data/graph";
-
-export const TIEBREAK_STEP = 1e-5;
 
 const TRAVEL_TIERS: readonly (readonly [RegExp, number])[] = [
   [/increased effect of Explicit Modifiers on your Maps/i, 1],
@@ -74,11 +73,11 @@ export class TiebreakIndex {
     }
     const weights = new Map<string, number>();
     for (const [nid, grp] of this.masteryGroupOf) {
-      if (!activeGroups.has(grp)) weights.set(nid, TIER_INACTIVE_MASTERY * TIEBREAK_STEP);
+      if (!activeGroups.has(grp)) weights.set(nid, TIER_INACTIVE_MASTERY);
       // アクティブグループは tier 0 = 重みなし(マップに入れない)
     }
     for (const [nid, tier] of this.travelTier) {
-      weights.set(nid, tier * TIEBREAK_STEP);
+      weights.set(nid, tier);
     }
     return weights;
   }

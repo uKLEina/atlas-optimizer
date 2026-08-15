@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import type { AtlasGraph } from "../src/data/graph";
 import { loadSolver } from "../src/solver/highs";
 import { solve } from "../src/solver/ilpReduced";
-import { TIEBREAK_STEP, TiebreakIndex } from "../src/solver/tiebreak";
+import { TiebreakIndex } from "../src/solver/tiebreak";
 import { loadGraph, loadRawData } from "./helpers/data";
 
 const highs = await loadSolver();
@@ -23,31 +23,47 @@ function diamond(): AtlasGraph {
 it("同点2経路から重みの小さい経路を選ぶ(縮約の平行辺選択込み)", () => {
   const g = diamond();
   const heavyA = new Map([
-    ["a1", 7e-5],
-    ["a2", 7e-5],
-    ["b1", 1e-5],
-    ["b2", 1e-5],
+    ["a1", 7],
+    ["a2", 7],
+    ["b1", 1],
+    ["b2", 1],
   ]);
   const res = solve(highs, g, ["t"], { nodeWeights: heavyA });
   expect(res.status).toBe("optimal");
   expect(res.points).toBe(3);
   expect([...res.nodes].sort()).toEqual(["b1", "b2", "r", "t"]);
   const heavyB = new Map([
-    ["a1", 1e-5],
-    ["a2", 1e-5],
-    ["b1", 7e-5],
-    ["b2", 7e-5],
+    ["a1", 1],
+    ["a2", 1],
+    ["b1", 7],
+    ["b2", 7],
   ]);
   const res2 = solve(highs, g, ["t"], { nodeWeights: heavyB });
   expect([...res2.nodes].sort()).toEqual(["a1", "a2", "r", "t"]);
 });
 
-it("重みの検証: 負・総和0.5以上は拒否", () => {
+it("重みがどれだけ大きくても遠回りは選ばれない(2フェーズなので構造的に安全)", () => {
+  // r - a1 - t(2pt)と r - c1 - c2 - c3 - t(4pt)。最短側に巨大な重み
+  const adj = new Map<string, ReadonlySet<string>>([
+    ["r", new Set(["a1", "c1"])],
+    ["a1", new Set(["r", "t"])],
+    ["c1", new Set(["r", "c2"])],
+    ["c2", new Set(["c1", "c3"])],
+    ["c3", new Set(["c2", "t"])],
+    ["t", new Set(["a1", "c3"])],
+  ]);
+  const g: AtlasGraph = { adj, info: new Map(), masteryNotables: new Map(), root: "r" };
+  const res = solve(highs, g, ["t"], { nodeWeights: new Map([["a1", 10_000]]) });
+  expect(res.status).toBe("optimal");
+  expect(res.points).toBe(2);
+  expect([...res.nodes].sort()).toEqual(["a1", "r", "t"]);
+});
+
+it("重みの検証: 負は拒否", () => {
   const g = diamond();
-  expect(() => solve(highs, g, ["t"], { nodeWeights: new Map([["a1", -1e-5]]) })).toThrow(
+  expect(() => solve(highs, g, ["t"], { nodeWeights: new Map([["a1", -1]]) })).toThrow(
     /non-negative/,
   );
-  expect(() => solve(highs, g, ["t"], { nodeWeights: new Map([["a1", 0.6]]) })).toThrow(/0\.5/);
 });
 
 // ---- ポリシー(TiebreakIndex)。代表ノードは stat パターンで拾い、id 直書きしない ----
@@ -93,17 +109,15 @@ it("travel node のカテゴリ序列が指定どおり", () => {
     return { id, expectedTier: i + 1 };
   });
   for (const { id, expectedTier } of reps) {
-    expect(neutral.get(id), id).toBeCloseTo(expectedTier * TIEBREAK_STEP, 10);
+    expect(neutral.get(id), id).toBe(expectedTier);
   }
   // カテゴリ外の travel node(tier 6)も存在する
-  expect(() =>
-    findNode((id) => !inMasteryGroup(id) && neutral.get(id) === 6 * TIEBREAK_STEP),
-  ).not.toThrow();
+  expect(() => findNode((id) => !inMasteryGroup(id) && neutral.get(id) === 6)).not.toThrow();
 });
 
 it("Mastery グループのノードは回避(tier 7)、指定すると当該グループ全体が最優先(重み0)", () => {
   const member = findNode((id) => inMasteryGroup(id));
-  expect(neutral.get(member)).toBeCloseTo(7 * TIEBREAK_STEP, 10);
+  expect(neutral.get(member)).toBe(7);
 
   const grp = data.nodes[member]!.group;
   const active = index.weightsFor([member]);
@@ -115,12 +129,5 @@ it("Mastery グループのノードは回避(tier 7)、指定すると当該グ
   }
   // 無関係の mastery グループは引き続き回避
   const otherMember = findNode((id) => inMasteryGroup(id) && data.nodes[id]?.group !== grp);
-  expect(active.get(otherMember)).toBeCloseTo(7 * TIEBREAK_STEP, 10);
-});
-
-it("重みの総和は 0.5 未満(最適性保存の前提)", () => {
-  let total = 0;
-  for (const w of neutral.values()) total += w;
-  expect(total).toBeGreaterThan(0);
-  expect(total).toBeLessThan(0.5);
+  expect(active.get(otherMember)).toBe(7);
 });
