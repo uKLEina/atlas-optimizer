@@ -11,12 +11,18 @@ import type { AtlasData } from "../data/graph";
 import type { SolveResult } from "./result";
 import type { WorkerRequest, WorkerResponse } from "./worker";
 
+interface Request {
+  terminals: string[];
+  excluded: string[];
+  weights?: Record<string, number>;
+}
+
 export class SolverClient {
   private worker!: Worker;
   private gen = 0;
   private busy = false;
-  private pending: { terminals: string[]; excluded: string[] } | null = null;
-  private last: { terminals: string[]; excluded: string[] } | null = null;
+  private pending: Request | null = null;
+  private last: Request | null = null;
 
   constructor(
     private readonly data: AtlasData,
@@ -66,23 +72,23 @@ export class SolverClient {
     this.last = null;
   }
 
-  request(terminals: string[], excluded: string[]): void {
+  request(terminals: string[], excluded: string[], weights?: Record<string, number>): void {
     this.gen++;
-    this.last = { terminals, excluded };
+    this.last = { terminals, excluded, weights };
     if (this.busy) {
-      this.pending = { terminals, excluded };
+      this.pending = { terminals, excluded, weights };
       return;
     }
     this.busy = true;
-    this.post({ type: "solve", gen: this.gen, terminals, excluded });
+    this.post({ type: "solve", gen: this.gen, terminals, excluded, weights });
   }
 
   private flush(): void {
     if (!this.pending || this.busy) return;
-    const { terminals, excluded } = this.pending;
+    const { terminals, excluded, weights } = this.pending;
     this.pending = null;
     this.busy = true;
-    this.post({ type: "solve", gen: this.gen, terminals, excluded });
+    this.post({ type: "solve", gen: this.gen, terminals, excluded, weights });
   }
 
   private post(msg: WorkerRequest): void {

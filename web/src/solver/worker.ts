@@ -11,7 +11,14 @@ import type { SolveResult } from "./result";
 
 export type WorkerRequest =
   | { type: "init"; data: AtlasData }
-  | { type: "solve"; gen: number; terminals: string[]; excluded: string[] };
+  | {
+      type: "solve";
+      gen: number;
+      terminals: string[];
+      excluded: string[];
+      /** タイブレーク用の微小ノード重み(tiebreak.ts が生成)。省略可 */
+      weights?: Record<string, number>;
+    };
 
 export type WorkerResponse =
   | { type: "ready" }
@@ -46,7 +53,10 @@ async function handle(msg: WorkerRequest): Promise<void> {
   }
   try {
     const { highs, g } = await readyPromise;
-    const result = solve(highs, g, msg.terminals, { excluded: msg.excluded });
+    const result = solve(highs, g, msg.terminals, {
+      excluded: msg.excluded,
+      nodeWeights: msg.weights ? new Map(Object.entries(msg.weights)) : undefined,
+    });
     ctx.postMessage({ type: "result", gen: msg.gen, result });
   } catch (err) {
     ctx.postMessage({ type: "error", gen: msg.gen, message: String(err) });

@@ -6,7 +6,8 @@
  * 2. root から到達不能になった terminal を無視リストへ(PoP踏襲。エラーにしない)
  * 3. 非terminalの葉を再帰的に刈り込み
  * 4. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
- * 5. 平行辺は最小重みのみ残す
+ * 5. 平行辺は最小コストのみ残す(コスト = w + タイブレーク微小重み eps の和。
+ *    同一 w の平行チェーンの選択はここで決まるため、eps 込みで比較する)
  *
  * 縮約辺は内部ノード列を保持し、ソルバーが使った辺を元のノード集合に展開できる。
  * pyref の networkx.MultiGraph は「辺レコード配列 + ノード→辺ID集合」で代替する。
@@ -18,6 +19,7 @@ export interface ReducedEdge {
   u: string; // u < v(辞書順)に正規化済み
   v: string;
   w: number; // 内部ノード数
+  eps: number; // 内部ノードのタイブレーク重み和
   path: readonly string[]; // 内部ノード列(順序は幾何学的経路順とは限らない。集合として使う)
 }
 
@@ -37,6 +39,7 @@ interface MultiEdge {
   u: string;
   v: string;
   w: number;
+  eps: number;
   path: string[];
   alive: boolean;
 }
@@ -45,7 +48,9 @@ export function build(
   g: AtlasGraph,
   terminals: Iterable<string>,
   excluded: Iterable<string> = [],
+  nodeWeights?: ReadonlyMap<string, number>,
 ): ReducedGraph {
+  const wt = (n: string): number => nodeWeights?.get(n) ?? 0;
   const excludedSet = new Set(excluded);
   if (excludedSet.has(g.root)) {
     throw new Error("start node cannot be excluded");
@@ -72,9 +77,9 @@ export function build(
   const aliveNodes = new Set<string>(reachable);
   for (const n of reachable) incident.set(n, new Set());
 
-  const addEdge = (u: string, v: string, w: number, path: string[]): void => {
+  const addEdge = (u: string, v: string, w: number, eps: number, path: string[]): void => {
     const id = edges.length;
-    edges.push({ u, v, w, path, alive: true });
+    edges.push({ u, v, w, eps, path, alive: true });
     incident.get(u)!.add(id);
     incident.get(v)!.add(id);
   };
@@ -90,7 +95,7 @@ export function build(
 
   for (const u of reachable) {
     for (const v of g.adj.get(u)!) {
-      if (reachable.has(v) && u < v) addEdge(u, v, 0, []);
+      if (reachable.has(v) && u < v) addEdge(u, v, 0, 0, []);
     }
   }
 
@@ -115,19 +120,19 @@ export function build(
       removeNode(n);
       changed = true;
       if (a === b) continue; // チェーンが輪に潰れた。輪を経由する意味はないので捨てる
-      addEdge(a, b, e1.w + e2.w + 1, [...e1.path, n, ...e2.path]);
+      addEdge(a, b, e1.w + e2.w + 1, e1.eps + e2.eps + wt(n), [...e1.path, n, ...e2.path]);
     }
   }
 
-  // 平行辺は最小重みのみ残して単純グラフ化(同値は先勝ち = pyref と同じ)
+  // 平行辺は最小コスト(w + eps)のみ残して単純グラフ化(同値は先勝ち = pyref と同じ)
   const simple = new Map<string, ReducedEdge>();
   for (const e of edges) {
     if (!e.alive || e.u === e.v) continue;
     const key = edgeKey(e.u, e.v);
     const prev = simple.get(key);
-    if (!prev || e.w < prev.w) {
+    if (!prev || e.w + e.eps < prev.w + prev.eps) {
       const [u, v] = e.u < e.v ? [e.u, e.v] : [e.v, e.u];
-      simple.set(key, { u, v, w: e.w, path: e.path });
+      simple.set(key, { u, v, w: e.w, eps: e.eps, path: e.path });
     }
   }
 

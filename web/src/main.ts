@@ -8,6 +8,7 @@ import "@fontsource/cinzel/600.css";
 import "./style.css";
 import { buildGraph, type AtlasData } from "./data/graph";
 import { SolverClient } from "./solver/client";
+import { TiebreakIndex } from "./solver/tiebreak";
 import { Assets } from "./ui/assets";
 import { buildBonusPoints } from "./ui/bonusPoints";
 import { Interaction } from "./ui/interaction";
@@ -68,6 +69,7 @@ async function init(): Promise<void> {
   );
   new Interaction(canvas, data, g.root, layout, assets, viewport, state, tooltip, requestDraw).attach();
 
+  const tiebreak = new TiebreakIndex(data, g);
   const solver = new SolverClient(
     data,
     (result) => state.setResult(result),
@@ -84,7 +86,9 @@ async function init(): Promise<void> {
     }
     state.setSolving();
     debounceTimer = window.setTimeout(() => {
-      solver.request(state.terminals(), state.excluded());
+      // タイブレーク重みは指定内容(アクティブMastery)に依存するため要求ごとに計算
+      const weights = Object.fromEntries(tiebreak.weightsFor(state.terminals()));
+      solver.request(state.terminals(), state.excluded(), weights);
     }, SOLVE_DEBOUNCE_MS);
   });
   state.subscribe(requestDraw);

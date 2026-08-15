@@ -5,6 +5,9 @@
  * TS ソルバーの points / ignoredTerminals / 最適性証明が全一致することを確認する。
  * ノード集合は同点最適が複数ありうるため比較しない(fuzz.py と同じ判断)。
  *
+ * 加えて4ケースに1回、本番と同じタイブレーク重み付きでも解き、
+ * ポイント最適性が保存されること(重みが厳密性を壊さないこと)を検証する。
+ *
  * 実行: npm run crosscheck
  * 別ケースファイル: CROSSCHECK_CASES=/path/to/cases.json npm run crosscheck
  * (通常の npm test からは vite.config.ts の test.exclude で除外されている)
@@ -16,8 +19,9 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { loadSolver } from "../src/solver/highs";
 import { solve } from "../src/solver/ilpReduced";
+import { TiebreakIndex } from "../src/solver/tiebreak";
 import { validate } from "../src/solver/validate";
-import { loadGraph } from "./helpers/data";
+import { loadGraph, loadRawData } from "./helpers/data";
 
 interface CrosscheckCase {
   id: number;
@@ -39,6 +43,7 @@ const doc = JSON.parse(readFileSync(casesFile, "utf-8")) as CrosscheckFile;
 
 const g = loadGraph();
 const highs = await loadSolver();
+const tiebreak = new TiebreakIndex(loadRawData(), g);
 
 // fixture 生成時のグラフと今のグラフが同じであること(リーグ更新の検知)
 if (doc.meta.dataNodes !== g.adj.size) {
@@ -65,6 +70,18 @@ describe(`crosscheck: ${path.basename(casesFile)}(${doc.cases.length}ケース�
         expect(res.points).toBe(c.expected.points);
         expect([...res.ignoredTerminals]).toEqual(c.expected.ignored);
         expect(validate(g, res, c.terminals, c.excluded)).toEqual([]);
+
+        // タイブレーク重み付きでもポイント最適性が保存されること
+        if (c.id % 4 === 0) {
+          const weighted = solve(highs, g, c.terminals, {
+            excluded: c.excluded,
+            nodeWeights: tiebreak.weightsFor(c.terminals),
+          });
+          tsTotal += weighted.solveTime;
+          expect(weighted.status).toBe("optimal");
+          expect(weighted.points).toBe(c.expected.points);
+          expect(validate(g, weighted, c.terminals, c.excluded)).toEqual([]);
+        }
       },
     );
   }

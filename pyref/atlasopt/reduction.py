@@ -5,9 +5,12 @@
 2. root から到達不能になった terminal を無視リストへ(PoP踏襲。エラーにしない)
 3. 非terminalの葉を再帰的に刈り込み
 4. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
-5. 平行辺は最小重みのみ残す
+5. 平行辺は最小コストのみ残す(コスト = w + タイブレーク微小重み eps の和。
+   同一 w の平行チェーンの選択はここで決まるため、eps 込みで比較しないと
+   タイブレークが縮約段階で潰れてしまう)
 
 縮約辺は内部ノード列を保持し、ソルバーが使った辺を元のノード集合に展開できる。
+node_weights はタイブレーク用の微小ノード重み(ilp_reduced.solve 参照)。
 """
 
 from __future__ import annotations
@@ -24,10 +27,11 @@ class ReducedGraph:
     root: str
     terminals: tuple[str, ...]  # rootを除く、到達可能なterminalのみ
     ignored_terminals: tuple[str, ...]  # 除外/到達不能で無視されたterminal
-    graph: nx.Graph  # 辺属性: w(内部ノード数), path(内部ノードのtuple)
+    graph: nx.Graph  # 辺属性: w(内部ノード数), eps(内部ノードのタイブレーク重み和), path
 
 
-def build(g: AtlasGraph, terminals, excluded=()) -> ReducedGraph:
+def build(g: AtlasGraph, terminals, excluded=(), node_weights=None) -> ReducedGraph:
+    wt = (node_weights or {}).get
     excluded = frozenset(excluded)
     if g.root in excluded:
         raise ValueError("start node cannot be excluded")
@@ -47,7 +51,7 @@ def build(g: AtlasGraph, terminals, excluded=()) -> ReducedGraph:
     for u in reachable:
         for v in g.adj[u]:
             if v in reachable and u < v:
-                H.add_edge(u, v, w=0, path=())
+                H.add_edge(u, v, w=0, eps=0.0, path=())
 
     changed = True
     while changed:
@@ -71,15 +75,22 @@ def build(g: AtlasGraph, terminals, excluded=()) -> ReducedGraph:
             changed = True
             if a == b:
                 continue  # チェーンが輪に潰れた。輪を経由する意味はないので捨てる
-            H.add_edge(a, b, w=d1["w"] + d2["w"] + 1, path=d1["path"] + (n,) + d2["path"])
+            H.add_edge(
+                a,
+                b,
+                w=d1["w"] + d2["w"] + 1,
+                eps=d1["eps"] + d2["eps"] + wt(n, 0.0),
+                path=d1["path"] + (n,) + d2["path"],
+            )
 
     S = nx.Graph()
     S.add_nodes_from(H.nodes)
     for u, v, d in H.edges(data=True):
         if u == v:
             continue
-        if not S.has_edge(u, v) or d["w"] < S[u][v]["w"]:
-            S.add_edge(u, v, w=d["w"], path=d["path"])
+        cost = d["w"] + d["eps"]
+        if not S.has_edge(u, v) or cost < S[u][v]["w"] + S[u][v]["eps"]:
+            S.add_edge(u, v, w=d["w"], eps=d["eps"], path=d["path"])
 
     return ReducedGraph(
         root=g.root,
