@@ -30,6 +30,8 @@ export class AppState {
   solving = false;
   solveError: string | null = null;
   hover: string | null = null;
+  /** 検索ヒット中のノード集合(強調表示用)。空なら検索非アクティブ */
+  search: ReadonlySet<string> = new Set();
 
   constructor(
     private readonly g: AtlasGraph,
@@ -112,6 +114,11 @@ export class AppState {
   setHover(id: string | null): void {
     if (this.hover === id) return;
     this.hover = id;
+    this.emit(false);
+  }
+
+  setSearch(matches: ReadonlySet<string>): void {
+    this.search = matches;
     this.emit(false);
   }
 

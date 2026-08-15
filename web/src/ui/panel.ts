@@ -10,6 +10,7 @@ import { encodeUrl } from "../export/poeplanner";
 import { effectiveTotal } from "./bonusPoints";
 import type { TreeLayout } from "./layout";
 import type { QuickSet } from "./quickSelect";
+import { buildSearchIndex, searchNodes } from "./search";
 import type { AppState } from "./state";
 import type { Viewport } from "./viewport";
 
@@ -36,6 +37,16 @@ export class Panel {
     this.pointsEl = mustGet("points-used");
     this.pointsTotalEl = mustGet("points-total");
     this.statusEl = mustGet("status");
+
+    const searchIndex = buildSearchIndex(data);
+    const searchInput = mustGet("search") as HTMLInputElement;
+    const searchCount = mustGet("search-count");
+    searchInput.addEventListener("input", () => {
+      const hits = searchNodes(searchIndex, searchInput.value);
+      this.state.setSearch(hits);
+      searchCount.hidden = hits.size === 0;
+      searchCount.textContent = String(hits.size);
+    });
     this.ignoredWrapEl = mustGet("ignored-wrap");
     this.ignoredEl = mustGet("ignored");
     this.exportBtn = mustGet("export") as HTMLButtonElement;

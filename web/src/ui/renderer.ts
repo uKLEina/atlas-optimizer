@@ -30,6 +30,7 @@ const COLOR = {
   excluded: "#e5484d",
   ignored: "#e8a33d",
   masteryHighlight: "#ffd63c",
+  search: "#49d7e8",
 };
 
 export class Renderer {
@@ -82,9 +83,33 @@ export class Renderer {
     this.drawEdges(ctx, view);
     this.drawStartDecoration(ctx);
     this.drawNodes(ctx, inView);
-    this.drawRings(ctx, inView);
+    this.drawRings(ctx, inView, s);
+    this.drawSearchHighlight(ctx, inView, s);
     this.drawHoverOverlay(ctx);
-    this.drawMasteryHighlight(ctx);
+    this.drawMasteryHighlight(ctx, s);
+  }
+
+  /**
+   * 検索ヒットのリング強調。ズームアウト時にも見えるよう、線幅・半径は
+   * スクリーンpx換算の下限を持たせる(ワールド固定だと全景で消えてしまう)
+   */
+  private drawSearchHighlight(
+    ctx: CanvasRenderingContext2D,
+    inView: (x: number, y: number) => boolean,
+    scale: number,
+  ): void {
+    const hits = this.state.search;
+    if (hits.size === 0) return;
+    ctx.strokeStyle = COLOR.search;
+    ctx.lineWidth = Math.max(6, 2 / scale); // 最低でも約2px
+    const r = Math.max(62, 6 / scale); // 最低でも約6px(大きすぎると対象が分からない)
+    for (const id of hits) {
+      const p = this.layout.positions.get(id);
+      if (!p || !inView(p.x, p.y)) continue;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, TAU);
+      ctx.stroke();
+    }
   }
 
   private drawBackdrop(ctx: CanvasRenderingContext2D): void {
@@ -201,6 +226,7 @@ export class Renderer {
   private drawRings(
     ctx: CanvasRenderingContext2D,
     inView: (x: number, y: number) => boolean,
+    scale: number,
   ): void {
     const ignored = new Set(this.state.result?.ignoredTerminals ?? []);
     const targets: [string, "terminal" | "excluded"][] = [];
@@ -213,8 +239,10 @@ export class Renderer {
       const frameW = nd
         ? (this.assets.worldSize("frame", spriteKeysFor(nd, false, false)[2], this.zk) ?? 90)
         : 90;
-      const r = frameW / 2 + 10;
-      ctx.lineWidth = 7;
+      // ズームアウト時にも見えるよう、スクリーンpx換算の下限を持たせる。
+      // 下限は控えめに(大きすぎると対象ノードがどれか分からなくなる。ユーザレビュー2回対応)
+      const r = Math.max(frameW / 2 + 10, 6 / scale);
+      ctx.lineWidth = Math.max(7, 2 / scale);
       ctx.beginPath();
       if (mark === "terminal" && ignored.has(id)) {
         ctx.strokeStyle = COLOR.ignored;
@@ -250,17 +278,19 @@ export class Renderer {
    * mastery hover 時、同名 mastery ノード(全クラスタ)へ黄色オーバーレイを重ねて
    * 位置を示す(PoE Planner 踏襲。ユーザレビューにより Notable ではなく mastery 側)
    */
-  private drawMasteryHighlight(ctx: CanvasRenderingContext2D): void {
+  private drawMasteryHighlight(ctx: CanvasRenderingContext2D, scale: number): void {
     const hover = this.state.hover;
     if (!hover || !this.data.nodes[hover]?.isMastery) return;
     ctx.fillStyle = `${COLOR.masteryHighlight}44`;
     ctx.strokeStyle = COLOR.masteryHighlight;
-    ctx.lineWidth = 6;
+    // ズームアウト時にも見えるよう、スクリーンpx換算の下限を持たせる。下限は控えめに
+    ctx.lineWidth = Math.max(6, 2 / scale);
+    const r = Math.max(62, 6 / scale);
     for (const id of [hover, ...(this.masteryIndex.siblings.get(hover) ?? [])]) {
       const p = this.layout.positions.get(id);
       if (!p) continue;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 62, 0, TAU);
+      ctx.arc(p.x, p.y, r, 0, TAU);
       ctx.fill();
       ctx.stroke();
     }

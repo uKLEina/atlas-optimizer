@@ -124,6 +124,34 @@ button:disabled {
   cursor: default;
 }
 
+#search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#search {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: inherit;
+  background: #14161c;
+  border: 1px solid #3a3f47;
+  border-radius: 6px;
+  outline: none;
+}
+
+#search:focus {
+  border-color: #49d7e8;
+}
+
+#search-count {
+  font-size: 12px;
+  color: #49d7e8;
+  flex-shrink: 0;
+}
+
 #quick-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
