@@ -106,3 +106,14 @@ def test_ball_oracles_agree(g):
         res = ilp_reduced.solve(sub, terms)
         assert res.status == "optimal"
         assert v_enum == v_dw == res.points, terms
+
+
+def test_root_adjacent_terminal_solves_exactly(g):
+    # 全 terminal が root へ融合する縮約の早期リターン経路
+    from atlasopt.ilp_reduced import solve
+
+    nb = sorted(g.adj[g.root])[0]
+    res = solve(g, [nb])
+    assert res.status == "optimal"
+    assert res.points == 1
+    assert res.nodes == frozenset({g.root, nb})

@@ -56,3 +56,19 @@ it("cannot exclude root", () => {
 it("unknown id rejected", () => {
   expect(() => build(g, ["999999"])).toThrow(/unknown or non-allocatable/);
 });
+
+it("adjacent terminals are contracted to one representative", () => {
+  // 隣接する2つの terminal は1つの代表(最小id)へ潰れ、merged に成分が残る
+  const red = build(g, ["58043", "47488"]); // Endless Tide とその唯一の隣
+  expect(red.terminals.length).toBe(1);
+  const rep = red.terminals[0]!;
+  expect(rep).toBe("47488" < "58043" ? "47488" : "58043");
+  expect([...(red.merged.get(rep) ?? [])].sort()).toEqual(["47488", "58043"]);
+});
+
+it("terminals adjacent to root merge into root", () => {
+  const nb = [...g.adj.get(g.root)!].sort()[0]!;
+  const red = build(g, [nb]);
+  expect(red.terminals).toEqual([]);
+  expect(red.merged.get(g.root)).toContain(nb);
+});

@@ -4,9 +4,13 @@
  * 手順(DESIGN.md の通り):
  * 1. 除外ノードをグラフから削除
  * 2. root から到達不能になった terminal を無視リストへ(PoP踏襲。エラーにしない)
- * 3. 非terminalの葉を再帰的に刈り込み
- * 4. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
- * 5. 平行辺は (w, eps) の辞書式最小のみ残す(w = ポイント数が主、
+ * 3. 隣接 terminal 縮約: terminal(と root)の誘導部分グラフの各連結成分を
+ *    代表1ノードへ潰す(辺コストが無いため厳密性は不変。代表は root 優先、
+ *    次いで最小 id = pyref と一致する決定的選択)。terminals は代表 id になり、
+ *    潰した成分は merged に記録して展開時に復元する
+ * 4. 非terminalの葉を再帰的に刈り込み
+ * 5. 非terminalの次数2ノードをチェーンごと重み付き辺に縮約(内部ノード数 = 辺重み)
+ * 6. 平行辺は (w, eps) の辞書式最小のみ残す(w = ポイント数が主、
  *    タイブレーク重み eps は同点時のみ。同一 w の平行チェーンの選択は
  *    ここで決まるため、eps を見ないとタイブレークが縮約段階で潰れてしまう)
  *
@@ -26,10 +30,12 @@ export interface ReducedEdge {
 
 export interface ReducedGraph {
   readonly root: string;
-  readonly terminals: readonly string[]; // rootを除く、到達可能なterminalのみ(辞書順)
+  readonly terminals: readonly string[]; // rootを除く、到達可能なterminalの代表id(辞書順)
   readonly ignoredTerminals: readonly string[]; // 除外/到達不能で無視されたterminal(辞書順)
   readonly nodes: ReadonlySet<string>;
   readonly edges: ReadonlyMap<string, ReducedEdge>; // キーは edgeKey(u, v)
+  /** 代表id → 隣接縮約で潰した成分の全ノード(代表含む)。展開時に復元する */
+  readonly merged: ReadonlyMap<string, readonly string[]>;
 }
 
 export function edgeKey(a: string, b: string): string {
@@ -69,14 +75,45 @@ export function build(
     .filter((t) => excludedSet.has(t) || !reachable.has(t))
     .sort();
   const ignoredSet = new Set(ignored);
-  const terms = [...wanted].filter((t) => !ignoredSet.has(t)).sort();
+  const rawTerms = [...wanted].filter((t) => !ignoredSet.has(t)).sort();
+
+  // 隣接 terminal 縮約(root 含む)。代表は root 優先、次いで最小 id
+  const rep = new Map<string, string>();
+  const merged = new Map<string, readonly string[]>();
+  {
+    const keepset = new Set([...rawTerms, g.root]);
+    for (const s of keepset) {
+      if (rep.has(s)) continue;
+      const comp = [s];
+      const inComp = new Set(comp);
+      for (let i = 0; i < comp.length; i++) {
+        for (const y of g.adj.get(comp[i]!)!) {
+          if (keepset.has(y) && !inComp.has(y)) {
+            inComp.add(y);
+            comp.push(y);
+          }
+        }
+      }
+      comp.sort();
+      const r = inComp.has(g.root) ? g.root : comp[0]!;
+      for (const x of comp) rep.set(x, r);
+      if (comp.length > 1) merged.set(r, comp);
+    }
+  }
+  const repOf = (n: string): string => rep.get(n) ?? n;
+  const terms = [...new Set(rawTerms.map(repOf))].filter((t) => t !== g.root).sort();
   const keep = new Set([...terms, g.root]);
 
-  // 到達可能部分だけで MultiGraph を作る(平行辺は縮約中に発生しうる)
+  // 到達可能部分だけで MultiGraph を作る(平行辺は縮約中・代表への融合で発生しうる)
   const edges: MultiEdge[] = [];
   const incident = new Map<string, Set<number>>();
-  const aliveNodes = new Set<string>(reachable);
-  for (const n of reachable) incident.set(n, new Set());
+  const aliveNodes = new Set<string>();
+  for (const n of reachable) {
+    if (repOf(n) === n) {
+      aliveNodes.add(n);
+      incident.set(n, new Set());
+    }
+  }
 
   const addEdge = (u: string, v: string, w: number, eps: number, path: string[]): void => {
     const id = edges.length;
@@ -96,7 +133,11 @@ export function build(
 
   for (const u of reachable) {
     for (const v of g.adj.get(u)!) {
-      if (reachable.has(v) && u < v) addEdge(u, v, 0, 0, []);
+      if (reachable.has(v) && u < v) {
+        const ru = repOf(u);
+        const rv = repOf(v);
+        if (ru !== rv) addEdge(ru, rv, 0, 0, []);
+      }
     }
   }
 
@@ -144,6 +185,7 @@ export function build(
     ignoredTerminals: ignored,
     nodes: new Set(aliveNodes),
     edges: simple,
+    merged,
   };
 }
 
@@ -158,6 +200,10 @@ export function expand(
     const e = reduced.edges.get(edgeKey(u, v));
     if (!e) throw new Error(`used edge not in reduced graph: ${u} - ${v}`);
     for (const p of e.path) sel.add(p);
+  }
+  // 隣接縮約で潰した terminal 成分を復元する(成分は誘導部分グラフとして連結)
+  for (const [r, comp] of reduced.merged) {
+    if (sel.has(r)) for (const x of comp) sel.add(x);
   }
   return sel;
 }

@@ -46,7 +46,12 @@ def solve(
 
     red = build(g, terminals, excluded, node_weights)
     if not red.terminals:
-        return SolveResult(0, frozenset({g.root}), "optimal", 0.0, red.ignored_terminals)
+        # 指定なし、または全 terminal が隣接縮約で root へ融合したケース。
+        # 後者は「root 成分ぶんのノードを取るだけ」が厳密な最適解
+        nodes = frozenset({g.root}) | red.merged.get(g.root, frozenset())
+        return SolveResult(
+            len(nodes) - 1, nodes, "optimal", float(len(nodes) - 1), red.ignored_terminals
+        )
 
     S = red.graph
     V = sorted(S.nodes)

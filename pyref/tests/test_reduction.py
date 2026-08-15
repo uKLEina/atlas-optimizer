@@ -54,3 +54,20 @@ def test_cannot_exclude_root(g):
 def test_unknown_id_rejected(g):
     with pytest.raises(ValueError):
         build(g, ["999999"])
+
+
+def test_adjacent_terminal_contraction(g):
+    # 隣接する2つの terminal は1つの代表(最小id)へ潰れ、merged に成分が残る
+    red = build(g, ["58043", "47488"])  # Endless Tide とその唯一の隣
+    assert len(red.terminals) == 1
+    rep = red.terminals[0]
+    assert rep == min("58043", "47488")
+    assert red.merged[rep] == frozenset({"58043", "47488"})
+
+
+def test_terminals_merged_into_root(g):
+    # root に隣接する terminal は root へ融合し、terminals は空になる
+    nb = sorted(g.adj[g.root])[0]
+    red = build(g, [nb])
+    assert red.terminals == ()
+    assert nb in red.merged[g.root]

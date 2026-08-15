@@ -65,11 +65,14 @@ export function solve(
   const wt = (v: string): number => nodeWeights?.get(v) ?? 0;
   const red = build(g, terminals, excluded, nodeWeights);
   if (red.terminals.length === 0) {
+    // 指定なし、または全 terminal が隣接縮約で root へ融合したケース。
+    // 後者は「root 成分ぶんのノードを取るだけ」が厳密な最適解
+    const nodes = new Set([g.root, ...(red.merged.get(g.root) ?? [])]);
     return {
-      points: 0,
-      nodes: new Set([g.root]),
+      points: nodes.size - 1,
+      nodes,
       status: "optimal",
-      dualBound: 0,
+      dualBound: nodes.size - 1,
       ignoredTerminals: red.ignoredTerminals,
       solveTime: 0,
     };

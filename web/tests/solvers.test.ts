@@ -115,3 +115,13 @@ for (const gc of GOLDENS) {
     expect(validate(g, res, gc.terminals, gc.excluded)).toEqual([]);
   });
 }
+
+it("root-adjacent terminal solves via contraction fast path", () => {
+  // 全 terminal が root へ融合する縮約の早期リターン経路
+  const nb = [...g.adj.get(g.root)!].sort()[0]!;
+  const res = solve(highs, g, [nb]);
+  expect(res.status).toBe("optimal");
+  expect(res.points).toBe(1);
+  expect([...res.nodes].sort()).toEqual([nb, g.root].sort());
+  expect(validate(g, res, [nb])).toEqual([]);
+});
